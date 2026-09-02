@@ -3,7 +3,7 @@
 > **Next-Generation Rust+ Companion Multi-Server Manager, Tactical Web Radar, and Matrix E2EE Voice Sentinel**
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Unlicense](https://img.shields.io/badge/License-Unlicense-blue.svg)](https://unlicense.org/)
 [![Protocol](https://img.shields.io/badge/Rust%2B-Proto2-orange.svg)](https://github.com/liamcottle/rustplus.js)
 [![Matrix](https://img.shields.io/badge/Matrix-E2EE-blueviolet.svg)](https://matrix.org/)
 
@@ -243,4 +243,4 @@ Contributions, issues, and feature requests are welcome! Feel free to check the 
 
 ## 📜 License
 
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+Distributed under The Unlicense (Public Domain dedication). See [`LICENSE`](LICENSE) for more information.
