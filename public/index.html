@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rust+ Multi-Server Manager | Tactical Node</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            rust: {
+              50: "#fff7ed",
+              100: "#ffedd5",
+              200: "#fed7aa",
+              300: "#fdba74",
+              400: "#fb923c",
+              500: "#f97316",
+              600: "#ea580c",
+              700: "#c2410c",
+              800: "#9a3412",
+              900: "#7c2d12",
+              accent: "#ce422b"
+            },
+            dark: {
+              base: "#0b0e14",
+              card: "#121722",
+              border: "#20293a",
+              hover: "#1a2233",
+              input: "#0e131d"
+            }
+          },
+          fontFamily: {
+            mono: ["JetBrains Mono", "Courier New", "monospace"],
+            sans: ["Inter", "system-ui", "sans-serif"]
+          }
+        }
+      }
+    }
+  </script>
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background-color: #080b10;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(206, 66, 43, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(234, 88, 12, 0.05) 0px, transparent 50%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    }
+    .font-rust {
+      font-family: "Rajdhani", sans-serif;
+      letter-spacing: 0.05em;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0d1117;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #21262d;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #ea580c;
+    }
+    .hazard-stripe {
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(234, 88, 12, 0.2),
+        rgba(234, 88, 12, 0.2) 10px,
+        transparent 10px,
+        transparent 20px
+      );
+    }
+    .pulse-glow {
+      box-shadow: 0 0 15px rgba(234, 88, 12, 0.4);
+    }
+    .pulse-green {
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+    }
+  </style>
+</head>
+<body class="text-gray-200 min-h-screen flex flex-col selection:bg-rust-600 selection:text-white">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- AUTH / LOGIN MODAL (Shown if not logged in) -->
+  <div id="login-view" class="fixed inset-0 z-50 bg-[#070a0f] flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-[#121722] border border-[#232d3f] rounded-xl shadow-2xl p-8 relative overflow-hidden">
+      <div class="hazard-stripe h-2 absolute top-0 left-0 right-0"></div>
+      
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-rust-900/40 border border-rust-600/50 text-rust-500 mb-4 shadow-lg pulse-glow">
+          <i class="fa-solid fa-radiation text-3xl"></i>
+        </div>
+        <h1 class="text-3xl font-extrabold font-rust uppercase text-white tracking-wider">Rust+ Manager</h1>
+        <p class="text-xs font-mono text-gray-400 mt-1 uppercase tracking-widest">Tactical Multi-Server & Matrix Node</p>
+      </div>
+
+      <form id="login-form" class="space-y-5">
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-400 mb-2">Node Admin Password</label>
+          <div class="relative">
+            <input type="password" id="login-password" required placeholder="Enter administrative password..." 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-rust-500 focus:ring-1 focus:ring-rust-500 font-mono">
+            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-gray-500 hover:text-gray-300">
+              <i class="fa-solid fa-eye" id="pwd-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="login-error" class="hidden text-xs bg-red-950/60 border border-red-800 text-red-300 p-3 rounded-lg font-mono"></div>
+
+        <button type="submit" id="login-btn" class="w-full bg-gradient-to-r from-rust-700 to-rust-600 hover:from-rust-600 hover:to-rust-500 text-white font-bold py-3 px-4 rounded-lg font-rust uppercase tracking-wider transition-all duration-150 shadow-lg flex items-center justify-center gap-2">
+          <i class="fa-solid fa-key"></i> Authenticate & Connect
+        </button>
+      </form>
+
+      <div class="mt-6 pt-4 border-t border-[#1c2436] text-center">
+        <p class="text-[11px] font-mono text-gray-500">Connected to Matrix Homeserver: <span class="text-gray-400">voice.trylocalhost.com</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER (Shown once authenticated) -->
+  <div id="app-view" class="hidden flex-1 flex flex-col min-h-screen">
+    
+    <!-- Top Navigation Bar -->
+    <header class="bg-[#0e131d]/90 backdrop-blur border-b border-[#1c2538] sticky top-0 z-40 px-4 lg:px-8 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-4 max-w-7xl mx-auto">
+        
+        <!-- Brand / Identity -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-rust-900/50 border border-rust-600/60 flex items-center justify-center text-rust-500">
+            <i class="fa-solid fa-shield-halved text-xl"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-rust font-black text-xl text-white tracking-wide">RUST+ SENTINEL</span>
+              <span class="text-[10px] font-mono bg-rust-950 text-rust-400 border border-rust-800/80 px-1.5 py-0.5 rounded">v2.4 PRO</span>
+            </div>
+            <p class="text-[11px] font-mono text-gray-400">Multi-Server Bridge & Matrix Dispatcher</p>
+          </div>
+        </div>
+
+        <!-- Telemetry Status Badges -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono">
+          <!-- Active Server Status -->
+          <div class="flex items-center gap-2 bg-[#141b29] border border-[#222e44] px-3 py-1.5 rounded-lg">
+            <span class="text-gray-400">Server:</span>
+            <span id="header-active-server-name" class="text-white font-bold truncate max-w-[140px]">None</span>
+            <span id="header-rust-status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+          </div>
+
+          <!-- Matrix Bot Status -->
+          <div class="flex items-center gap-2 bg-[#141b29] border border-[#222e44] px-3 py-1.5 rounded-lg">
+            <i class="fa-solid fa-comments text-cyan-400"></i>
+            <span class="text-gray-400">Matrix:</span>
+            <span id="header-matrix-status" class="text-emerald-400 font-bold">Online</span>
+          </div>
+
+          <!-- FCM Listener Status -->
+          <div class="flex items-center gap-2 bg-[#141b29] border border-[#222e44] px-3 py-1.5 rounded-lg cursor-pointer hover:border-rust-600 transition" onclick="switchTab('pairing')">
+            <i class="fa-solid fa-tower-broadcast text-rust-400"></i>
+            <span class="text-gray-400">Pairing:</span>
+            <span id="header-fcm-status" class="text-yellow-400 font-bold">Idle</span>
+          </div>
+
+          <!-- Logout Button -->
+          <button onclick="logout()" title="Logout" class="bg-[#141b29] hover:bg-red-950/40 hover:text-red-400 hover:border-red-800 text-gray-400 border border-[#222e44] px-3 py-1.5 rounded-lg transition">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <div class="bg-[#0b0f17] border-b border-[#182133]">
+      <div class="max-w-7xl mx-auto px-4 lg:px-8">
+        <nav class="flex space-x-2 sm:space-x-4 overflow-x-auto py-2 custom-scrollbar">
+          <button onclick="switchTab('switches')" id="tab-btn-switches" class="tab-btn active px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-white bg-rust-700/80 border border-rust-500">
+            <i class="fa-solid fa-toggle-on"></i> Base Controls
+          </button>
+          <button onclick="switchTab('map')" id="tab-btn-map" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-map-location-dot"></i> Tactical Map
+          </button>
+          <button onclick="switchTab('telemetry')" id="tab-btn-telemetry" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-server"></i> Server & Team <span id="badge-event-pulse" class="hidden w-2 h-2 rounded-full bg-rust-500 animate-ping"></span>
+          </button>
+          <button onclick="switchTab('markers')" id="tab-btn-markers" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-store"></i> World & Vending <span id="badge-marker-count" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded text-rust-400">0</span>
+          </button>
+          <button onclick="switchTab('servers')" id="tab-btn-servers" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-list-check"></i> Server Profiles <span id="badge-server-count" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded">0</span>
+          </button>
+          <button onclick="switchTab('pairing')" id="tab-btn-pairing" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-tower-cell"></i> In-Game Pairing
+          </button>
+          <button onclick="switchTab('diagnostics')" id="tab-btn-diagnostics" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-stethoscope"></i> Matrix & Logs
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1">
+
+      <!-- ================================================================= -->
+      <!-- TAB 1: BASE CONTROLS & SMART SWITCHES -->
+      <!-- ================================================================= -->
+      <section id="tab-switches" class="tab-content space-y-6">
+        
+        <!-- Quick Action Master Bar -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg relative overflow-hidden">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-bolt-lightning text-rust-500"></i> Master Base Tactical Controls
+              </h2>
+              <p class="text-xs font-mono text-gray-400">One-click batch operations for turrets, air defense SAMs, and lighting grid.</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="quickAction('turrets_on')" class="bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-700 px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-virus"></i> Turrets ON
+              </button>
+              <button onclick="quickAction('turrets_off')" class="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5">
+                <i class="fa-solid fa-power-off"></i> Turrets OFF
+              </button>
+              <button onclick="quickAction('sams_on')" class="bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-700 px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5">
+                <i class="fa-solid fa-jet-fighter"></i> SAMs ON
+              </button>
+              <button onclick="quickAction('sams_off')" class="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5">
+                <i class="fa-solid fa-jet-fighter"></i> SAMs OFF
+              </button>
+              <button onclick="quickAction('lights_on')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-300 border border-amber-700 px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5">
+                <i class="fa-solid fa-lightbulb"></i> Lights ON
+              </button>
+              <button onclick="quickAction('lights_off')" class="bg-slate-900 hover:bg-slate-800 text-gray-300 border border-slate-700 px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5">
+                <i class="fa-solid fa-lightbulb"></i> Lights OFF
+              </button>
+              <button onclick="openAddEntityModal()" class="bg-rust-700 hover:bg-rust-600 text-white px-3.5 py-2 rounded-lg font-rust uppercase font-bold text-xs tracking-wider transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-plus"></i> Add Device
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Server Banner if not connected -->
+        <div id="no-server-warning" class="hidden bg-amber-950/40 border border-amber-700 text-amber-200 p-4 rounded-xl flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-triangle-exclamation text-xl text-amber-400"></i>
+            <div>
+              <p class="font-bold font-rust uppercase text-sm">No Active Server Connected</p>
+              <p class="text-xs font-mono text-amber-300/80">Please select or pair a Rust server profile to control smart devices in real-time.</p>
+            </div>
+          </div>
+          <button onclick="switchTab('servers')" class="bg-amber-800 hover:bg-amber-700 text-white font-rust uppercase text-xs font-bold px-3 py-1.5 rounded-lg">
+            Manage Servers
+          </button>
+        </div>
+
+        <!-- Devices Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="devices-grid">
+          <!-- Dynamic smart switch cards rendered here -->
+        </div>
+
+        <!-- Smart Alarms Section -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-bell text-red-500 animate-pulse"></i> Base Raid Alarms & Proximity Sensors
+            </h3>
+            <span class="text-xs font-mono text-gray-400">Forwarded directly to Matrix Raid Room with @room ping</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="alarms-grid">
+            <!-- Dynamic smart alarm cards rendered here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 2: SERVER PROFILES MANAGER -->
+      <!-- ================================================================= -->
+      <section id="tab-servers" class="tab-content hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-server text-rust-500"></i> Server Profiles
+            </h2>
+            <p class="text-xs font-mono text-gray-400">Manage multiple Rust+ servers with one-click instant active switching.</p>
+          </div>
+          <button onclick="openAddServerModal()" class="bg-rust-600 hover:bg-rust-500 text-white font-rust uppercase font-bold text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i> Add Server Profile
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="servers-grid">
+          <!-- Dynamically populated server cards -->
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 3: LIVE FCM & DEVICE PAIRING SUITE -->
+      <!-- ================================================================= -->
+      <section id="tab-pairing" class="tab-content hidden space-y-6">
+        
+        <!-- Live Listener Control Header -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl">
+          <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div class="space-y-2">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-rust-900/50 border border-rust-600 text-rust-400">
+                  <i class="fa-solid fa-tower-broadcast text-xl"></i>
+                </span>
+                <div>
+                  <h3 class="text-xl font-rust font-bold uppercase text-white">Live FCM & Companion Pairing Listener</h3>
+                  <p class="text-xs font-mono text-gray-400">Catches in-game "Pair with Server" and "Pair Device" notifications over Push/WebSocket.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Toggle Switch -->
+            <div class="flex items-center gap-4 bg-[#0a0d14] border border-[#1e2638] px-5 py-3 rounded-xl">
+              <div class="text-right font-mono text-xs">
+                <p class="text-gray-400 uppercase">Listener Status</p>
+                <p id="fcm-toggle-status-text" class="font-bold text-yellow-400">STOPPED</p>
+              </div>
+              <button id="fcm-toggle-btn" onclick="toggleFCMListener()" class="relative inline-flex h-8 w-16 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-700 transition-colors duration-200 ease-in-out focus:outline-none">
+                <span id="fcm-toggle-knob" class="translate-x-0 pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pairing Flow Guide & Facepunch Companion Link Tool -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+                    <!-- Card 2: Import rustplus.config.json from @liamcottle/rustplus.js -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 space-y-4 shadow-lg">
+            <div class="flex items-center justify-between border-b border-[#1e2638] pb-3">
+              <h4 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-file-import text-rust-400"></i> Import rustplus.config.json
+              </h4>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-border text-gray-400">
+                CLI Compatible
+              </span>
+            </div>
+
+            <p class="text-xs font-mono text-gray-300 leading-relaxed">
+              If you have already generated a <code class="text-rust-300">rustplus.config.json</code> using <code class="text-cyan-300">npx @liamcottle/rustplus.js fcm-register</code> on your PC, paste it here to import instantly.
+            </p>
+
+            <div class="space-y-2">
+              <textarea id="fcm-config-json-input" rows="4" placeholder='Paste full { "fcm_credentials": ..., "expo_push_token": ... } JSON here...' class="w-full bg-[#0a0d14] border border-[#1e2638] focus:border-rust-500 rounded-lg p-3 text-[11px] font-mono text-gray-200 focus:outline-none custom-scrollbar"></textarea>
+              <button id="btn-import-config" onclick="importRustPlusConfig()" class="w-full bg-[#182030] hover:bg-[#222e44] text-white font-rust uppercase font-bold text-xs py-2 px-3 rounded-lg border border-[#27354d] shadow transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Import & Activate FCM Credentials
+              </button>
+            </div>
+          </div>
+
+          <!-- Card 1: Facepunch Companion Steam Link & Auth Token -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 space-y-4 shadow-lg">
+            <div class="flex items-center justify-between border-b border-[#1e2638] pb-3">
+              <h4 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-brands fa-steam text-cyan-400"></i> Facepunch Companion Link
+              </h4>
+              <span id="fcm-companion-link-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-yellow-950/80 text-yellow-400 border border-yellow-800">
+                Pending Link
+              </span>
+            </div>
+
+            <div class="space-y-3">
+              <!-- Expo Push Token -->
+              <div>
+                <label class="block text-[11px] font-mono uppercase text-gray-400 mb-1">Node Expo Push Token</label>
+                <div class="flex items-center gap-2">
+                  <input type="text" id="fcm-expo-token-display" readonly value="Loading token..." class="w-full bg-[#0a0d14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs font-mono text-rust-300 select-all focus:outline-none truncate" />
+                  <button onclick="copyExpoToken()" title="Copy Token" class="bg-[#182030] hover:bg-[#222e44] text-gray-300 p-2 rounded-lg border border-[#27354d] text-xs">
+                    <i class="fa-solid fa-copy"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Step 1: 1-Click Steam Auto-Pair -->
+              <div>
+                <label class="block text-[11px] font-mono uppercase text-gray-400 mb-1">Method 1: 1-Click Steam Auto-Pair</label>
+                <button onclick="window.open('/pair-helper.html', 'RustPlusSteamPair', 'width=600,height=650')" class="w-full bg-[#1b2838] hover:bg-[#2a475e] text-white font-mono text-xs py-2.5 px-3 rounded-lg border border-[#3b5978] shadow-md transition flex items-center justify-center gap-2">
+                  <i class="fa-brands fa-steam text-sm"></i> Launch 1-Click Steam Auto-Pair <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                </button>
+              </div>
+
+              <!-- Step 2: Paste Auth Token -->
+              <div>
+                <label class="block text-[11px] font-mono uppercase text-gray-400 mb-1">Step 2: Companion Auth Token</label>
+                <div class="space-y-2">
+                  <input type="text" id="fcm-auth-token-input" placeholder="Paste Companion AuthToken here..." class="w-full bg-[#0a0d14] border border-[#1e2638] focus:border-rust-500 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none" />
+                  <button onclick="saveCompanionAuthToken()" class="w-full bg-rust-600 hover:bg-rust-500 text-white font-rust uppercase font-bold text-xs py-2 px-3 rounded-lg shadow transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-link"></i> Link & Register Companion
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-[#1e2638] flex items-center justify-between">
+              <button onclick="triggerFCMRegistration()" class="text-gray-400 hover:text-white font-mono text-[11px] flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-rotate"></i> Regenerate FCM Key
+              </button>
+              <span class="text-[10px] font-mono text-gray-500">Android GMS FCM</span>
+            </div>
+          </div>
+
+          <!-- Real-Time Incoming Notification Terminal -->
+          <div class="lg:col-span-2 bg-[#0c1017] border border-[#1e2638] rounded-xl p-5 flex flex-col h-[400px]">
+            <div class="flex items-center justify-between pb-3 border-b border-[#1c2436] mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-xs font-mono font-bold uppercase text-white">Live In-Game Pairing Stream</span>
+              </div>
+              <button onclick="clearPairingLogs()" class="text-[11px] font-mono text-gray-500 hover:text-gray-300">
+                Clear
+              </button>
+            </div>
+
+            <div id="pairing-logs-stream" class="flex-1 overflow-y-auto font-mono text-xs space-y-2 pr-2 custom-scrollbar">
+              <p class="text-gray-600 italic">Waiting for incoming pairing notifications from Facepunch FCM...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 2: TACTICAL ISLAND MAP & RADAR (getMap) -->
+      <!-- ================================================================= -->
+      <section id="tab-map" class="tab-content hidden space-y-4">
+        <!-- Top Toolbar -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-map-location-dot text-rust-500"></i> Tactical Island Map
+            </h2>
+            <span id="map-dim-badge" class="bg-[#0b0e14] border border-[#20293a] px-2 py-0.5 rounded text-xs font-mono text-cyan-400">3250 x 3250</span>
+            <span id="map-hover-coords" class="hidden sm:inline bg-[#0b0e14] border border-[#20293a] px-2.5 py-0.5 rounded text-xs font-mono text-amber-300">Sector: -- | X: --, Y: --</span>
+          </div>
+
+          <!-- Controls & Layer Toggles -->
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center bg-[#0a0d14] border border-[#20293a] rounded-lg p-1 text-xs font-mono">
+              <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-[#161f2e] transition text-gray-300">
+                <input type="checkbox" id="layer-monuments" checked onchange="redrawMap()" class="accent-rust-500 rounded"> Monuments
+              </label>
+              <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-[#161f2e] transition text-gray-300">
+                <input type="checkbox" id="layer-team" checked onchange="redrawMap()" class="accent-emerald-500 rounded"> Team
+              </label>
+              <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-[#161f2e] transition text-gray-300">
+                <input type="checkbox" id="layer-events" checked onchange="redrawMap()" class="accent-orange-500 rounded"> Events
+              </label>
+              <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-[#161f2e] transition text-gray-300">
+                <input type="checkbox" id="layer-vending" checked onchange="redrawMap()" class="accent-blue-500 rounded"> Vending
+              </label>
+              <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-[#161f2e] transition text-gray-300">
+                <input type="checkbox" id="layer-grid" checked onchange="redrawMap()" class="accent-cyan-500 rounded"> Grid (A-Z)
+              </label>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <button onclick="zoomMap(1.25)" title="Zoom In" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition">
+                <i class="fa-solid fa-plus"></i>
+              </button>
+              <button onclick="zoomMap(0.8)" title="Zoom Out" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition">
+                <i class="fa-solid fa-minus"></i>
+              </button>
+              <button onclick="resetMapView()" title="Fit Map" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition">
+                <i class="fa-solid fa-arrows-to-dot"></i> Fit
+              </button>
+              <button onclick="refreshMapData(true)" id="btn-refresh-map" title="Fetch Fresh Map from Server (getMap)" class="bg-rust-700 hover:bg-rust-600 text-white border border-rust-500 px-3.5 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-arrows-rotate"></i> Fetch Map
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div id="map-container" class="relative w-full h-[700px] bg-[#070a0f] border border-[#20293a] rounded-xl overflow-hidden select-none">
+          <canvas id="map-canvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+          
+          <!-- Map Loading Indicator -->
+          <div id="map-loading" class="hidden absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3 z-30">
+            <i class="fa-solid fa-compass fa-spin text-4xl text-rust-500"></i>
+            <p class="text-sm font-mono text-gray-300">Fetching & Decoding High-Resolution Map JPEG...</p>
+          </div>
+
+          <!-- Floating Map Legend -->
+          <div class="absolute bottom-4 left-4 bg-black/80 backdrop-blur border border-[#20293a] rounded-lg px-3 py-2 text-[11px] font-mono text-gray-300 flex flex-wrap items-center gap-3 z-20 pointer-events-none">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Alive</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Sleeping</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-400"></span> Dead</span>
+            <span class="flex items-center gap-1">👑 Leader</span>
+            <span class="flex items-center gap-1">🚢 Cargo</span>
+            <span class="flex items-center gap-1">🚁 Heli</span>
+            <span class="flex items-center gap-1">📦 Crate</span>
+            <span class="flex items-center gap-1">🛒 Vending</span>
+            <span class="flex items-center gap-1">🏛️ Monument</span>
+          </div>
+
+          <!-- Click / Hover Tooltip -->
+          <div id="map-tooltip" class="hidden absolute pointer-events-none bg-[#0e131d]/95 backdrop-blur border border-rust-500/80 rounded-lg p-3 text-xs font-mono shadow-2xl z-40 max-w-xs transition-opacity duration-150"></div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 3: SERVER INFO, TIME & TEAM ROSTER (getInfo, getTime, getTeamInfo) -->
+      <!-- ================================================================= -->
+      <section id="tab-telemetry" class="tab-content hidden space-y-6">
+
+        <!-- 1. SERVER INFO HERO CARD (getInfo) -->
+        <div id="server-info-card" class="relative rounded-2xl border border-[#20293a] overflow-hidden bg-[#121722] shadow-xl">
+          <!-- Background Banner Image with Gradient Overlay -->
+          <div id="server-banner-bg" class="absolute inset-0 bg-cover bg-center opacity-25 filter blur-xs" style="background-image: url('https://files.facepunch.com/Alistair/124/07/2025/9593/fpos.png');"></div>
+          <div class="absolute inset-0 bg-gradient-to-r from-[#0b0e14] via-[#0b0e14]/90 to-[#0b0e14]/70"></div>
+
+          <div class="relative p-6 space-y-6">
+            <!-- Header Row -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="flex items-center gap-4">
+                <img id="server-logo-img" src="" alt="Server Logo" class="w-14 h-14 rounded-xl border border-rust-500/60 shadow-lg object-cover bg-black/40">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h2 id="server-name-display" class="text-2xl font-rust font-bold text-white tracking-wide">--</h2>
+                    <span id="server-status-pill" class="bg-emerald-950/80 text-emerald-300 border border-emerald-700 px-2 py-0.5 rounded text-[11px] font-mono">🟢 ONLINE</span>
+                  </div>
+                  <p id="server-address-display" class="text-xs font-mono text-gray-400 mt-0.5">--</p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <a id="server-website-link" href="#" target="_blank" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3.5 py-2 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-globe"></i> Website
+                </a>
+                <button onclick="refreshServerInfo(true)" id="btn-refresh-info" class="bg-rust-700 hover:bg-rust-600 text-white border border-rust-500 px-4 py-2 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 shadow">
+                  <i class="fa-solid fa-arrows-rotate"></i> Refresh getInfo
+                </button>
+              </div>
+            </div>
+
+            <!-- Stats & Capacity Meter -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-[#1e2638]">
+              <div class="bg-[#0a0d14]/70 border border-[#1c2436] p-4 rounded-xl">
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-xs font-mono text-gray-400 uppercase">Population</span>
+                  <span id="stat-queue-badge" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded text-amber-400">Queue: 0</span>
+                </div>
+                <p id="stat-players" class="text-2xl font-rust font-bold text-white mt-1">-- / --</p>
+                <div class="w-full bg-[#182133] rounded-full h-1.5 mt-2 overflow-hidden">
+                  <div id="stat-players-bar" class="bg-rust-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="bg-[#0a0d14]/70 border border-[#1c2436] p-4 rounded-xl">
+                <span class="text-xs font-mono text-gray-400 uppercase">World Map</span>
+                <p id="stat-map-name" class="text-lg font-rust font-bold text-cyan-400 mt-1 truncate">Procedural Map</p>
+                <p id="stat-map-size" class="text-xs font-mono text-gray-400">Size: ----m</p>
+              </div>
+
+              <div class="bg-[#0a0d14]/70 border border-[#1c2436] p-4 rounded-xl">
+                <span class="text-xs font-mono text-gray-400 uppercase">Generation Seed</span>
+                <p id="stat-seed" class="text-lg font-rust font-bold text-amber-400 mt-1 truncate">----------</p>
+                <p id="stat-salt" class="text-xs font-mono text-gray-400">Salt: ----</p>
+              </div>
+
+              <div class="bg-[#0a0d14]/70 border border-[#1c2436] p-4 rounded-xl">
+                <span class="text-xs font-mono text-gray-400 uppercase">Server Wipe Cycle</span>
+                <p id="stat-wipe-relative" class="text-lg font-rust font-bold text-emerald-400 mt-1 truncate">--</p>
+                <p id="stat-wipe-date" class="text-xs font-mono text-gray-400 truncate">--</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. IN-GAME TIME & CELESTIAL ARC (getTime) -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436]">
+            <div class="flex items-center gap-3">
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-clock text-amber-400"></i> In-Game Time & Celestial Cycle
+              </h3>
+              <span id="time-status-pill" class="bg-amber-950/80 text-amber-300 border border-amber-700 px-2.5 py-0.5 rounded text-xs font-mono font-bold">☀️ DAYLIGHT</span>
+            </div>
+            <button onclick="refreshTimeInfo(true)" id="btn-refresh-time" class="self-start sm:self-auto bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh getTime
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <!-- Large Clock Display -->
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl flex items-center gap-4">
+              <div id="time-celestial-icon" class="text-4xl text-amber-400">
+                <i class="fa-solid fa-sun animate-spin" style="animation-duration: 20s;"></i>
+              </div>
+              <div>
+                <span class="text-[11px] font-mono text-gray-400 uppercase">Current In-Game Clock</span>
+                <p id="stat-game-time" class="text-3xl font-rust font-bold text-amber-400 tracking-wider">--:--</p>
+                <p id="time-countdown-desc" class="text-xs font-mono text-gray-300 mt-0.5">Calculating cycle...</p>
+              </div>
+            </div>
+
+            <!-- Sunrise & Sunset Cycle Meter -->
+            <div class="md:col-span-2 bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl space-y-2">
+              <div class="flex justify-between items-center text-xs font-mono text-gray-400">
+                <span class="flex items-center gap-1.5 text-amber-400"><i class="fa-solid fa-sunrise"></i> Sunrise: <b id="time-sunrise-val">--:--</b></span>
+                <span id="time-cycle-percent" class="text-cyan-400 font-bold">--% Day</span>
+                <span class="flex items-center gap-1.5 text-orange-400"><i class="fa-solid fa-sunset"></i> Sunset: <b id="time-sunset-val">--:--</b></span>
+              </div>
+              <!-- Visual Progress Bar -->
+              <div class="w-full bg-[#161f2e] h-3 rounded-full overflow-hidden relative">
+                <div id="time-cycle-bar" class="bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-500 h-full rounded-full transition-all duration-500" style="width: 50%;"></div>
+              </div>
+              <div class="flex justify-between items-center text-[11px] font-mono text-gray-500 pt-1">
+                <span>Day Length: <b id="time-daylength-val" class="text-gray-300">-- mins</b></span>
+                <span>Time Scale: <b id="time-timescale-val" class="text-gray-300">1.0x</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. TEAM ROSTER & MAP POSITIONS (getTeamInfo) -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436]">
+            <div class="flex items-center gap-3">
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-emerald-400"></i> Team Roster & Tactical Coordinates
+              </h3>
+              <span id="team-size-badge" class="bg-[#0b0e14] border border-[#20293a] px-2.5 py-0.5 rounded text-xs font-mono text-emerald-400">0 Members</span>
+            </div>
+            <button onclick="refreshTeamInfo(true)" id="btn-refresh-team" class="self-start sm:self-auto bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh getTeamInfo
+            </button>
+          </div>
+
+          <!-- Team Summary Counters -->
+          <div class="flex flex-wrap gap-2 text-xs font-mono">
+            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+              👑 Leader: <b id="team-leader-name" class="text-amber-400">--</b>
+            </span>
+            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+              🟢 Online: <b id="team-online-count" class="text-emerald-400">0</b>
+            </span>
+            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+              ❤️ Alive: <b id="team-alive-count" class="text-emerald-400">0</b>
+            </span>
+            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+              💤 Sleeping: <b id="team-sleep-count" class="text-amber-400">0</b>
+            </span>
+            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+              💀 Dead: <b id="team-dead-count" class="text-red-400">0</b>
+            </span>
+          </div>
+
+          <!-- Team Cards Grid -->
+          <div id="team-members-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No team members data loaded. Click Refresh getTeamInfo.</div>
+          </div>
+        </div>
+
+        <!-- 4. IN-GAME TEAM CHAT & RELAY -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 flex flex-col h-[400px]">
+          <div class="flex items-center justify-between pb-3 border-b border-[#1c2436] mb-3">
+            <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-headset text-emerald-400"></i> In-Game Team Chat & Relay
+            </h3>
+            <span class="text-[11px] font-mono text-gray-400">Bridged to Matrix TeamChat Room</span>
+          </div>
+
+          <!-- Chat Stream -->
+          <div id="team-chat-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs mb-3">
+            <p class="text-gray-500 italic">No in-game team chat received yet.</p>
+          </div>
+
+          <!-- Chat Input -->
+          <form id="team-chat-form" class="flex gap-2 pt-2 border-t border-[#1c2436]">
+            <input type="text" id="team-chat-input" placeholder="Send message to in-game team chat..." 
+              class="flex-1 bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-rust-500 font-mono">
+            <button type="submit" class="bg-rust-700 hover:bg-rust-600 text-white font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg">
+              Send
+            </button>
+          </form>
+        </div>
+
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 4: WORLD EVENTS & VENDING MARKETPLACE (getMapMarkers) -->
+      <!-- ================================================================= -->
+      <section id="tab-markers" class="tab-content hidden space-y-6">
+        <!-- Top Toolbar -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-store text-rust-500"></i> World Events & Vending Marketplace
+            </h2>
+            <span id="markers-count-badge" class="bg-[#0b0e14] border border-[#20293a] px-2.5 py-0.5 rounded text-xs font-mono text-cyan-400">0 Active Markers</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="refreshMarkers(true)" id="btn-refresh-markers" class="bg-rust-700 hover:bg-rust-600 text-white border border-rust-500 px-3.5 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition flex items-center gap-1.5 shadow">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh getMapMarkers
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Column 1: Active World Events Radar (Cargo, Heli, Chinook, Crates) -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 flex flex-col h-[600px]">
+            <div class="flex items-center justify-between pb-3 border-b border-[#1c2436] mb-3">
+              <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-radar text-rust-500 animate-spin"></i> Active World Events
+              </h3>
+              <span id="events-count-pill" class="text-xs font-mono text-amber-400">0 Active</span>
+            </div>
+
+            <div id="world-events-list" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs">
+              <p class="text-gray-500 italic p-4 text-center">No major world events (Cargo, Heli, Chinook, Crates) detected right now.</p>
+            </div>
+          </div>
+
+          <!-- Column 2 & 3: Vending Machine Marketplace Browser -->
+          <div class="lg:col-span-2 bg-[#121722] border border-[#20293a] rounded-xl p-5 flex flex-col h-[600px]">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436] mb-3">
+              <div>
+                <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-cart-shopping text-cyan-400"></i> Island Vending Marketplace
+                </h3>
+                <p class="text-[11px] font-mono text-gray-400">Browse player and monument vending machines and their sell orders.</p>
+              </div>
+
+              <!-- Search input -->
+              <div class="relative w-full sm:w-64">
+                <input type="text" id="vending-search-input" oninput="filterVendingMachines()" placeholder="Search item or shop name..." 
+                  class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 font-mono focus:outline-none focus:border-rust-500">
+                <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-gray-500 text-xs"></i>
+              </div>
+            </div>
+
+            <!-- Filter Buttons -->
+            <div class="flex items-center gap-2 mb-3">
+              <button onclick="setVendingFilter('all')" id="vf-btn-all" class="px-2.5 py-1 rounded text-xs font-mono bg-rust-700 text-white">All Shops</button>
+              <button onclick="setVendingFilter('instock')" id="vf-btn-instock" class="px-2.5 py-1 rounded text-xs font-mono bg-[#141b29] text-gray-400 hover:text-white">In Stock Only</button>
+              <button onclick="setVendingFilter('bp')" id="vf-btn-bp" class="px-2.5 py-1 rounded text-xs font-mono bg-[#141b29] text-gray-400 hover:text-white">Blueprints Only</button>
+              <span id="vending-match-count" class="ml-auto text-xs font-mono text-gray-400">0 Shops</span>
+            </div>
+
+            <!-- Vending Machines List -->
+            <div id="vending-machines-list" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar font-mono text-xs">
+              <p class="text-gray-500 italic p-4 text-center">No vending machines currently broadcast on map.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 5: DIAGNOSTICS & MATRIX BRIDGE -->
+      <!-- ================================================================= -->
+      <section id="tab-diagnostics" class="tab-content hidden space-y-6">
+        
+        <!-- Matrix Rooms Status Grid -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-6">
+          <div>
+            <h3 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-diagram-project text-cyan-400"></i> Matrix Homeserver Integration Hub
+            </h3>
+            <p class="text-xs font-mono text-gray-400">Bridge connection to <b class="text-gray-200">https://voice.trylocalhost.com</b> as <b class="text-gray-200">@rustplus_bot</b></p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-rust uppercase font-bold text-gray-300">Target Alerts Room</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              </div>
+              <p class="text-[11px] font-mono text-gray-400 truncate">!o_4OuUiiwcC1oaMzVRadV5sHgNFMBkBRXU-9kA5ye3o</p>
+              <button onclick="testMatrixAlert()" class="mt-3 w-full bg-rust-900/40 hover:bg-rust-800/80 border border-rust-700 text-rust-300 text-xs font-rust uppercase font-bold py-1.5 rounded-lg transition">
+                Send Test Alert
+              </button>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-rust uppercase font-bold text-gray-300">Target Raid Room</span>
+                <span class="w-2 h-2 rounded-full bg-red-400"></span>
+              </div>
+              <p class="text-[11px] font-mono text-gray-400 truncate">!OP71BJn69F9Oo6HeyVPbCplou9X5HCVEKyCUICfvKuY</p>
+              <button onclick="testMatrixRaid()" class="mt-3 w-full bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-rust uppercase font-bold py-1.5 rounded-lg transition">
+                Test @room Raid Ping
+              </button>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-rust uppercase font-bold text-gray-300">Target TeamChat Room</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              </div>
+              <p class="text-[11px] font-mono text-gray-400 truncate">!ZoGXgzxm91h2MQcP91L6k4VWmLrdqCux_TrU9500yOg</p>
+              <button onclick="testMatrixChat()" class="mt-3 w-full bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs font-rust uppercase font-bold py-1.5 rounded-lg transition">
+                Test Chat Relay
+              </button>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-rust uppercase font-bold text-gray-300">Voice Call Room</span>
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              </div>
+              <p class="text-[11px] font-mono text-gray-400 truncate">!7L3o0btm7NOa628vhLy8nsIaZnIQlnqheYThgN3xvho</p>
+              <div class="flex gap-2 mt-3">
+                <button onclick="joinVoiceCall()" class="flex-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 text-xs font-rust uppercase font-bold py-1.5 rounded-lg transition">
+                  Join Call
+                </button>
+                <a href="https://matrix.to/#/!7L3o0btm7NOa628vhLy8nsIaZnIQlnqheYThgN3xvho?via=voice.trylocalhost.com" target="_blank" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold border border-gray-700">
+                  Open
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Natural Voice Alert Dispatcher -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-microphone-lines text-rust-500"></i> Natural Voice Call Alert Dispatcher
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Transmits realistic, natural-sounding voice alerts (Azure Neural Speech) into the Matrix Voice Call Room.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="speakPresetAlert('raid')" class="bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-rust uppercase font-bold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-volume-high"></i> Raid Alert
+              </button>
+              <button onclick="speakPresetAlert('cargo')" class="bg-blue-950/80 hover:bg-blue-900 border border-blue-800 text-blue-300 text-xs font-rust uppercase font-bold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-ship"></i> Cargo Ship
+              </button>
+              <button onclick="speakPresetAlert('heli')" class="bg-amber-950/80 hover:bg-amber-900 border border-amber-800 text-amber-300 text-xs font-rust uppercase font-bold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-helicopter"></i> Patrol Heli
+              </button>
+              <button onclick="speakPresetAlert('oilrig')" class="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs font-rust uppercase font-bold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-box-open"></i> Oil Rig Crate
+              </button>
+            </div>
+          </div>
+
+          <form id="custom-voice-form" class="flex flex-col sm:flex-row gap-3 pt-2">
+            <input type="text" id="custom-voice-text" required placeholder="Type custom announcement to speak naturally in voice call..." 
+              class="flex-1 bg-[#0a0d14] border border-[#20293a] rounded-lg px-4 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-rust-500 font-mono">
+            <select id="custom-voice-select" class="bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2.5 text-xs text-gray-300 font-mono focus:border-rust-500 focus:outline-none">
+              <option value="en-US-ChristopherNeural">Christopher (Natural Male)</option>
+              <option value="en-US-JennyNeural">Jenny (Natural Female)</option>
+              <option value="en-US-GuyNeural">Guy (Tactical Male)</option>
+              <option value="en-GB-RyanNeural">Ryan (British Male)</option>
+            </select>
+            <button type="submit" class="bg-rust-600 hover:bg-rust-500 text-white font-rust uppercase font-bold text-xs px-5 py-2.5 rounded-lg transition shadow flex items-center justify-center gap-2">
+              <i class="fa-solid fa-bullhorn"></i> Speak In Call
+            </button>
+          </form>
+        </div>
+
+        <!-- Unified System Event & Audit Logs -->
+        <div class="bg-[#0c1017] border border-[#1e2638] rounded-xl p-5 flex flex-col h-[400px]">
+          <div class="flex items-center justify-between pb-3 border-b border-[#1c2436] mb-3">
+            <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-gray-400"></i> Unified Activity & Dispatch Log
+            </h3>
+            <span class="text-[11px] font-mono text-gray-500">Auto-refreshing via WebSocket</span>
+          </div>
+          <div id="system-events-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs">
+            <!-- Event logs -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ADD / EDIT SERVER MODAL -->
+  <div id="modal-server" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="max-w-lg w-full bg-[#121722] border border-[#232d3f] rounded-xl p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-[#20293a] mb-5">
+        <h3 id="modal-server-title" class="text-xl font-rust font-bold uppercase text-white">Add Server Profile</h3>
+        <button onclick="closeModal('modal-server')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="server-form" class="space-y-4">
+        <input type="hidden" id="server-form-id">
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Server Name</label>
+          <input type="text" id="server-form-name" required placeholder="e.g. Rustoria Main / US East 2x" 
+            class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Server IP / Host</label>
+            <input type="text" id="server-form-ip" required placeholder="e.g. 51.81.48.12" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">App Port</label>
+            <input type="number" id="server-form-port" required placeholder="e.g. 28082" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Player Steam64 ID</label>
+            <input type="text" id="server-form-playerid" required placeholder="76561198..." 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Player Token</label>
+            <input type="number" id="server-form-token" required placeholder="e.g. -12345678" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="server-form-proxy" class="rounded bg-[#0a0d14] border-gray-700 text-rust-600 focus:ring-0">
+          <label for="server-form-proxy" class="text-xs font-mono text-gray-300">Use Facepunch WebSocket Proxy (WSS)</label>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-[#20293a]">
+          <button type="button" onclick="closeModal('modal-server')" class="px-4 py-2 rounded-lg text-xs font-rust uppercase font-bold text-gray-400 hover:text-white bg-[#1a2233]">Cancel</button>
+          <button type="submit" class="px-5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-white bg-rust-600 hover:bg-rust-500 shadow">Save Server</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD SMART DEVICE MODAL -->
+  <div id="modal-entity" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="max-w-md w-full bg-[#121722] border border-[#232d3f] rounded-xl p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-[#20293a] mb-5">
+        <h3 class="text-xl font-rust font-bold uppercase text-white">Add Smart Device / Alarm</h3>
+        <button onclick="closeModal('modal-entity')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="entity-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Device Label / Name</label>
+          <input type="text" id="entity-form-name" required placeholder="e.g. Main Base Turrets / Roof SAMs" 
+            class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Entity ID (In-Game ID)</label>
+          <input type="number" id="entity-form-id" required placeholder="e.g. 1029384" 
+            class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Type</label>
+            <select id="entity-form-type" class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+              <option value="switch">Smart Switch</option>
+              <option value="alarm">Smart Alarm</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Category</label>
+            <select id="entity-form-category" class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-rust-500 focus:outline-none">
+              <option value="Turrets">Turrets</option>
+              <option value="SAMs">SAM Sites</option>
+              <option value="Lights">Base Lights</option>
+              <option value="Doors">Doors / Air Locks</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-[#20293a]">
+          <button type="button" onclick="closeModal('modal-entity')" class="px-4 py-2 rounded-lg text-xs font-rust uppercase font-bold text-gray-400 hover:text-white bg-[#1a2233]">Cancel</button>
+          <button type="submit" class="px-5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-white bg-rust-600 hover:bg-rust-500 shadow">Save Device</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

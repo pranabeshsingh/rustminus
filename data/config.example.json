@@ -1,0 +1,34 @@
+{
+  "adminPasswordHash": "$2b$10$YourBcryptHashHereForAdminLogin",
+  "sessionSecret": "replace-with-a-random-32-char-session-secret",
+  "matrix": {
+    "homeserverUrl": "https://matrix.example.com",
+    "username": "rustplus_bot",
+    "displayName": "RustPlus Sentinel",
+    "matrixId": "@rustplus_bot:matrix.example.com",
+    "password": "your_matrix_bot_password",
+    "voiceCallRoomLink": "https://matrix.to/#/!your_voice_call_room_id?via=matrix.example.com",
+    "voiceCallRoomId": "!your_voice_call_room_id",
+    "alertsRoomId": "!your_alerts_room_id",
+    "teamChatRoomId": "!your_team_chat_room_id",
+    "raidRoomId": "!your_raid_room_id"
+  },
+  "fcm": {
+    "enabled": true,
+    "fcm_credentials": {
+      "gcm": {
+        "androidId": "YOUR_GCM_ANDROID_ID",
+        "securityToken": "YOUR_GCM_SECURITY_TOKEN"
+      },
+      "fcm": {
+        "token": "YOUR_FCM_TOKEN"
+      }
+    },
+    "expo_push_token": "ExponentPushToken[YOUR_EXPO_PUSH_TOKEN]",
+    "rustplus_auth_token": "YOUR_RUSTPLUS_COMPANION_AUTH_TOKEN"
+  },
+  "webui": {
+    "domain": "rust.example.com",
+    "port": 3000
+  }
+}

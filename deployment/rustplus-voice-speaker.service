@@ -1,0 +1,16 @@
+[Unit]
+Description=RustPlus Live WebRTC Voice Call Speaker Bot
+After=network.target rustplus-manager.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/rustplus-manager
+ExecStart=/usr/bin/node /opt/rustplus-manager/lib/voice-webrtc-speaker.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=NODE_PATH=/opt/rustplus-manager/node_modules
+
+[Install]
+WantedBy=multi-user.target

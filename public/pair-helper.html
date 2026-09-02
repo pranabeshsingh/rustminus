@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rust+ Companion Steam Pairing Helper</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0b0f17] text-white flex items-center justify-center min-h-screen p-4 font-mono">
+  <div class="bg-[#121722] border border-[#20293a] rounded-2xl p-8 max-w-lg w-full shadow-2xl space-y-6 text-center">
+    <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-rust-950 border border-rust-700 text-rust-400 mx-auto">
+      <i class="fa-brands fa-steam text-3xl"></i>
+    </div>
+
+    <div>
+      <h2 class="text-2xl font-black uppercase text-white tracking-wide">Steam Companion Linking</h2>
+      <p class="text-xs text-gray-400 mt-1">Authenticate with Facepunch to register your FCM Push Token.</p>
+    </div>
+
+    <div id="status-box" class="bg-[#0a0d14] border border-[#1e2638] p-4 rounded-xl text-left text-xs space-y-2">
+      <div class="flex items-center gap-2">
+        <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse"></span>
+        <span id="status-title" class="font-bold text-yellow-400 uppercase">Ready to launch</span>
+      </div>
+      <p id="status-desc" class="text-gray-400">Click the button below to open the official Facepunch Steam authentication popup.</p>
+    </div>
+
+    <button id="launch-btn" onclick="startPairing()" class="w-full bg-[#1b2838] hover:bg-[#2a475e] text-white font-bold py-3.5 px-4 rounded-xl border border-[#3b5978] shadow-lg transition flex items-center justify-center gap-2 text-sm">
+      <i class="fa-brands fa-steam text-lg"></i> Launch Facepunch Steam Login
+    </button>
+
+    <p class="text-[11px] text-gray-500">Ensure popup blockers are disabled so the Steam login window can open.</p>
+  </div>
+
+  <script>
+    let popupWindow = null;
+    let handlerInterval = null;
+
+    function startPairing() {
+      const dot = document.getElementById("status-dot");
+      const title = document.getElementById("status-title");
+      const desc = document.getElementById("status-desc");
+      const btn = document.getElementById("launch-btn");
+
+      dot.className = "w-2.5 h-2.5 rounded-full bg-cyan-500 animate-ping";
+      title.textContent = "WAITING FOR STEAM AUTHENTICATION";
+      title.className = "font-bold text-cyan-400 uppercase";
+      desc.textContent = "Please complete the Steam login in the opened popup window...";
+      btn.disabled = true;
+      btn.className = "w-full bg-gray-800 text-gray-500 font-bold py-3.5 px-4 rounded-xl border border-gray-700 cursor-not-allowed text-sm flex items-center justify-center gap-2";
+
+      popupWindow = window.open("https://companion-rust.facepunch.com/login", "RustPlusSteamAuth", "width=800,height=700");
+
+      if (!popupWindow) {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-red-500";
+        title.textContent = "POPUP BLOCKED";
+        title.className = "font-bold text-red-400 uppercase";
+        desc.textContent = "Please allow popups for this site and click the button again.";
+        btn.disabled = false;
+        btn.className = "w-full bg-[#1b2838] hover:bg-[#2a475e] text-white font-bold py-3.5 px-4 rounded-xl border border-[#3b5978] shadow-lg transition flex items-center justify-center gap-2 text-sm";
+        return;
+      }
+
+      handlerInterval = setInterval(function() {
+        try {
+          if (!popupWindow || popupWindow.closed) {
+            clearInterval(handlerInterval);
+            return;
+          }
+
+          if (popupWindow.ReactNativeWebView === undefined) {
+            popupWindow.ReactNativeWebView = {
+              postMessage: async function(message) {
+                clearInterval(handlerInterval);
+                try {
+                  const auth = JSON.parse(message);
+                  console.log("Captured Companion Auth:", auth);
+
+                  dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+                  title.textContent = "STEAM AUTHENTICATED! REGISTERING...";
+                  title.className = "font-bold text-emerald-400 uppercase";
+                  desc.textContent = "Sending FCM token to Facepunch Companion API...";
+
+                  const res = await fetch("/api/fcm/save-token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ authToken: auth.Token })
+                  });
+                  const data = await res.json();
+
+                  if (res.ok) {
+                    title.textContent = "LINKED & REGISTERED SUCCESSFULLY!";
+                    desc.textContent = "Your Steam account is now linked. You can close this window and pair in-game!";
+                    if (popupWindow && !popupWindow.closed) popupWindow.close();
+                    setTimeout(() => {
+                      if (window.opener) window.opener.location.reload();
+                    }, 2000);
+                  } else {
+                    throw new Error(data.error || "Registration failed");
+                  }
+                } catch (e) {
+                  title.textContent = "REGISTRATION ERROR";
+                  title.className = "font-bold text-red-400 uppercase";
+                  desc.textContent = e.message;
+                }
+              }
+            };
+          }
+        } catch (e) {
+          // Cross-origin access while on steamcommunity.com is expected until it redirects back to facepunch
+        }
+      }, 250);
+    }
+  </script>
+</body>
+</html>
