@@ -1,0 +1,57 @@
+# ==========================================
+# Security & Secret Credentials
+# ==========================================
+# Production configuration containing hashes, keys, tokens
+data/config.json
+data/servers.json
+
+# Session storage & persistent browser profiles
+data/sessions/
+data/browser_profile/
+
+# FCM & Matrix internal cryptographic keys
+data/fcm_credentials.json
+data/fcm-credentials.json
+data/matrix_crypto/
+data/olm/
+
+# Ephemeral synthesized audio recordings
+data/audio/*.mp3
+data/audio/*.wav
+data/audio/*.txt
+!data/audio/.gitkeep
+
+# Environment secrets & private certificates
+.env
+.env.*
+*.pem
+*.key
+*.cert
+*.crt
+
+# Machine-specific operation notes
+agent.md
+
+# One-off test scripts
+test_browser.js
+test_chrome.js
+
+# ==========================================
+# Dependencies & Large Binaries
+# ==========================================
+node_modules/
+chrome/
+*.log
+
+# ==========================================
+# System & Editor Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.npm/
+snap/
