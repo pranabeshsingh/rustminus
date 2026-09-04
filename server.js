@@ -253,7 +253,7 @@ app.get("/api/settings", (req, res) => {
       provider: ai.provider || "gemini",
       apiKeyMasked: maskKey(ai.apiKey),
       hasApiKey: !!ai.apiKey,
-      model: ai.model || (ai.provider === "groq" ? "llama-3.3-70b-versatile" : ai.provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"),
+      model: ai.model || (ai.provider === "groq" ? "qwen/qwen3.8-27b" : ai.provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"),
       customPrompt: ai.customPrompt || ""
     },
     externalApis: {

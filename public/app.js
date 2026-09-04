@@ -2327,20 +2327,20 @@ function handleAiProviderChange() {
   const keyInput = document.getElementById("setting-ai-apikey");
   if (modelInput) {
     if (provider === "groq") {
-      modelInput.placeholder = "llama-3.3-70b-versatile";
-      if (!modelInput.value || !modelInput.value.includes("llama") && !modelInput.value.includes("mixtral")) {
-        modelInput.value = "llama-3.3-70b-versatile";
+      modelInput.placeholder = "qwen/qwen3.8-27b";
+      if (!modelInput.value || (!modelInput.value.includes("qwen") && !modelInput.value.includes("oss") && !modelInput.value.includes("llama"))) {
+        modelInput.value = "qwen/qwen3.8-27b";
       }
       if (keyInput) keyInput.placeholder = "Enter Groq API Key (gsk_...)...";
     } else if (provider === "openai") {
       modelInput.placeholder = "gpt-4o-mini";
-      if (!modelInput.value || modelInput.value.includes("gemini") || modelInput.value.includes("llama")) {
+      if (!modelInput.value || modelInput.value.includes("gemini") || modelInput.value.includes("qwen")) {
         modelInput.value = "gpt-4o-mini";
       }
       if (keyInput) keyInput.placeholder = "Enter OpenAI API Key (sk-...)...";
     } else {
       modelInput.placeholder = "gemini-1.5-flash";
-      if (!modelInput.value || modelInput.value.includes("gpt-") || modelInput.value.includes("llama")) {
+      if (!modelInput.value || modelInput.value.includes("gpt-") || modelInput.value.includes("qwen")) {
         modelInput.value = "gemini-1.5-flash";
       }
       if (keyInput) keyInput.placeholder = "Enter Gemini API Key (AIzaSy...)...";
@@ -2353,7 +2353,7 @@ function selectModelPreset(val) {
   const modelInput = document.getElementById("setting-ai-model");
   if (modelInput) modelInput.value = val;
 
-  if (val.startsWith("llama-") || val.startsWith("mixtral-")) {
+  if (val.startsWith("qwen/") || val.startsWith("openai/gpt-oss") || val.startsWith("llama-") || val.startsWith("mixtral-")) {
     const radio = document.getElementById("setting-ai-provider-groq");
     if (radio) radio.checked = true;
   } else if (val.startsWith("gpt-")) {
