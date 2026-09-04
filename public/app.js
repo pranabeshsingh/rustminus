@@ -25,11 +25,16 @@ let state = {
   storage: null,
   automation: null,
   telemetry: null,
+  clanInfo: null,
+  clanChat: [],
+  clanArmory: null,
   notes: []
 };
 
 let ws = null;
 let currentTab = "switches";
+let currentTeamSubTab = "active-squad";
+let currentChatSubTab = "team-chat";
 
 // ==========================================
 // TOAST NOTIFICATIONS
@@ -186,6 +191,8 @@ function handleWebSocketMessage(msg) {
       state.serverInfo = payload.serverInfo || null;
       state.teamInfo = payload.teamInfo || null;
       state.timeInfo = payload.timeInfo || null;
+      state.clanInfo = payload.clanInfo || null;
+      state.clanChat = payload.clanChat || [];
       if (Array.isArray(payload.markers)) {
         state.markers = payload.markers;
         state.worldEvents = payload.markers.filter(m => [2, 4, 5, 6, 8].includes(m.type));
@@ -230,6 +237,16 @@ function handleWebSocketMessage(msg) {
       renderTeamInfo();
       redrawMap();
       renderTelemetry();
+      break;
+
+    case "clan_info":
+      state.clanInfo = payload;
+      renderClanMotd();
+      renderClanAlumni();
+      break;
+
+    case "clan_message":
+      appendClanChatMessage(payload);
       break;
 
     case "markers_data":
@@ -371,6 +388,9 @@ function renderAll() {
   loadStorageAndUpkeepData();
   loadAutomationData();
   loadTeamTelemetryData();
+  loadClanArmory(false);
+  refreshClanInfo(false);
+  loadClanChat();
   loadNotesData();
 }
 
@@ -914,7 +934,10 @@ function renderTeamInfo() {
   const mapSize = state.serverInfo?.mapSize || 4500;
 
   const sizeBadge = document.getElementById("team-size-badge");
-  if (sizeBadge) sizeBadge.textContent = `${members.length} Member${members.length === 1 ? "" : "s"}`;
+  if (sizeBadge) sizeBadge.textContent = `${members.length} Active`;
+
+  const subtabActive = document.getElementById("subtab-active-count");
+  if (subtabActive) subtabActive.textContent = members.length;
 
   let onlineCount = 0;
   let aliveCount = 0;
@@ -1028,6 +1051,8 @@ function renderTeamInfo() {
       </div>
     `;
   }).join("");
+
+  renderClanAlumni();
 }
 
 async function refreshTeamInfo(userInitiated = false) {
@@ -1073,6 +1098,382 @@ async function promoteTeammate(steamId, encodedName) {
   } catch (err) {
     showToast(err.message, "error");
   }
+}
+
+// ==========================================
+// CLAN HUB, ALUMNI & ARMORY FUNCTIONS
+// ==========================================
+function switchTeamSubTab(tab) {
+  currentTeamSubTab = tab;
+  const tabs = ["active-squad", "clan-alumni", "clan-armory", "clan-multitc"];
+
+  tabs.forEach(t => {
+    const el = document.getElementById(`team-subtab-${t}`);
+    const btn = document.getElementById(`subtab-btn-${t}`);
+    if (el) el.classList.toggle("hidden", t !== tab);
+    if (btn) {
+      if (t === tab) {
+        btn.className = "team-subtab-btn px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-emerald-700/80 text-white border border-emerald-500 flex items-center gap-1.5 shadow";
+      } else {
+        btn.className = "team-subtab-btn px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5";
+      }
+    }
+  });
+
+  if (tab === "clan-alumni") {
+    renderClanAlumni();
+  } else if (tab === "clan-armory" || tab === "clan-multitc") {
+    loadClanArmory(false);
+  }
+}
+
+function switchChatSubTab(tab) {
+  currentChatSubTab = tab;
+  const tabs = [
+    { id: "team-chat", container: "chat-stream-team-container", btn: "chat-subtab-btn-team" },
+    { id: "clan-chat", container: "chat-stream-clan-container", btn: "chat-subtab-btn-clan" },
+    { id: "clan-motd", container: "chat-stream-motd-container", btn: "chat-subtab-btn-motd" }
+  ];
+
+  tabs.forEach(t => {
+    const el = document.getElementById(t.container);
+    const btn = document.getElementById(t.btn);
+    if (el) el.classList.toggle("hidden", t.id !== tab);
+    if (btn) {
+      if (t.id === tab) {
+        btn.className = "px-3 py-1 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-emerald-700/80 text-white border border-emerald-500 flex items-center gap-1.5 shadow";
+      } else {
+        btn.className = "px-3 py-1 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5";
+      }
+    }
+  });
+
+  if (tab === "clan-chat") {
+    loadClanChat();
+  } else if (tab === "clan-motd") {
+    renderClanMotd();
+  }
+}
+
+async function loadClanChat() {
+  try {
+    const res = await fetch("/api/clan/chat");
+    if (!res.ok) return;
+    const data = await res.json();
+    const stream = document.getElementById("clan-chat-stream");
+    if (stream && Array.isArray(data.messages) && data.messages.length > 0) {
+      stream.innerHTML = "";
+      for (const m of data.messages) {
+        appendClanChatMessage(m);
+      }
+    }
+  } catch (e) {}
+}
+
+function filterClanAlumni() {
+  renderClanAlumni();
+}
+
+function renderClanAlumni() {
+  const container = document.getElementById("clan-alumni-grid");
+  const countBadge = document.getElementById("subtab-alumni-count");
+  const totalBadge = document.getElementById("clan-total-badge");
+  if (!container) return;
+
+  const searchInput = document.getElementById("clan-alumni-search");
+  const sortSelect = document.getElementById("clan-alumni-sort");
+  const query = (searchInput?.value || "").toLowerCase().trim();
+  const sortBy = sortSelect?.value || "lastSeen";
+
+  // Historical members come from state.telemetry?.historicalMembers
+  let list = Array.isArray(state.telemetry?.historicalMembers) ? [...state.telemetry.historicalMembers] : [];
+
+  if (countBadge) countBadge.textContent = list.length;
+  if (totalBadge) {
+    const activeLen = state.teamInfo?.members?.length || 0;
+    const total = activeLen + list.length;
+    totalBadge.textContent = `${total} Clanmates`;
+  }
+
+  // Filter
+  if (query) {
+    list = list.filter(m => 
+      (m.name && m.name.toLowerCase().includes(query)) ||
+      (m.steamId && String(m.steamId).includes(query)) ||
+      (m.lastGrid && m.lastGrid.toLowerCase().includes(query))
+    );
+  }
+
+  // Sort
+  list.sort((a, b) => {
+    if (sortBy === "playtime") return (b.playTimeSec || 0) - (a.playTimeSec || 0);
+    if (sortBy === "deaths") return (b.totalDeaths || 0) - (a.totalDeaths || 0);
+    if (sortBy === "distance") return (b.distanceMeters || 0) - (a.distanceMeters || 0);
+    return (b.lastSeenTime || 0) - (a.lastSeenTime || 0);
+  });
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No clanmates matching filter.</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(m => {
+    const initials = (m.name || "C").slice(0, 2).toUpperCase();
+    const roleBadge = m.clanRole !== null && m.clanRole !== undefined ? `<span class="text-[9px] bg-[#141b29] text-amber-400 border border-[#222e44] px-1 py-0.5 rounded">Rank ${m.clanRole}</span>` : "";
+
+    return `
+      <div class="bg-[#0b0e14] border border-[#1e2638] rounded-xl p-3.5 flex flex-col justify-between gap-2.5 font-mono text-xs shadow-md">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-rust-950 border border-rust-800 flex items-center justify-center font-rust font-bold text-white text-xs">
+            ${initials}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center justify-between gap-1">
+              <h5 class="font-rust font-bold text-sm text-white truncate">${m.name || m.steamId}</h5>
+              ${roleBadge}
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <span class="truncate">ID: ${m.steamId}</span>
+              <a href="https://steamcommunity.com/profiles/${m.steamId}" target="_blank" class="text-rust-400 hover:text-rust-300" title="View Steam Profile">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-1.5 text-[11px] pt-2 border-t border-[#182133] text-gray-400">
+          <div>Last Seen: <b class="text-white">${m.lastSeenFormatted || "Earlier"}</b></div>
+          <div>Last Sector: <b class="text-cyan-400">${m.lastGrid || "--"}</b></div>
+          <div>Playtime: <b class="text-emerald-400">${m.playTimeFormatted || "0s"}</b></div>
+          <div>AFK Standstill: <b class="text-amber-400">${m.afkTimeFormatted || "0s"}</b></div>
+          <div>Deaths: <b class="text-red-400">${m.totalDeaths || 0}</b></div>
+          <div>Traveled: <b class="text-cyan-300">${m.distanceFormatted || "0m"}</b></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadClanArmory(userInitiated = false) {
+  try {
+    const res = await fetch("/api/clan/armory");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.clanArmory = data;
+
+    // 1. Total Raid Sulfur Power
+    const totalPowerEl = document.getElementById("clan-total-sulfur-power");
+    const subtabBoomEl = document.getElementById("subtab-boom-val");
+    const val = data.totalSulfurPower || 0;
+    if (totalPowerEl) totalPowerEl.textContent = `${val.toLocaleString()} Sulfur`;
+    if (subtabBoomEl) {
+      if (val >= 1000000) subtabBoomEl.textContent = `${(val / 1000000).toFixed(1)}M`;
+      else if (val >= 1000) subtabBoomEl.textContent = `${Math.round(val / 1000)}k`;
+      else subtabBoomEl.textContent = val;
+    }
+
+    // 2. Explosives counts
+    const exp = data.explosives || {};
+    const resrc = data.resources || {};
+
+    const rocketsEl = document.getElementById("armory-rockets-count");
+    if (rocketsEl) rocketsEl.textContent = exp.rockets || 0;
+
+    const hvEl = document.getElementById("armory-hv-rockets");
+    if (hvEl) hvEl.textContent = `+${exp.hvRockets || 0} HV / ${exp.fireRockets || 0} Fire / ${exp.mlrsRockets || 0} MLRS`;
+
+    const c4El = document.getElementById("armory-c4-count");
+    if (c4El) c4El.textContent = exp.c4 || 0;
+
+    const satchelsEl = document.getElementById("armory-satchels-count");
+    if (satchelsEl) satchelsEl.textContent = exp.satchels || 0;
+
+    const beancansEl = document.getElementById("armory-beancans");
+    if (beancansEl) beancansEl.textContent = `+${exp.beancans || 0} Beancans`;
+
+    const exploEl = document.getElementById("armory-explo-count");
+    if (exploEl) exploEl.textContent = (exp.exploAmmo || 0).toLocaleString();
+
+    const sulfurEl = document.getElementById("armory-sulfur-count");
+    if (sulfurEl) sulfurEl.textContent = (resrc.sulfur || 0).toLocaleString();
+
+    const gpEl = document.getElementById("armory-gp-count");
+    if (gpEl) gpEl.textContent = `${(resrc.gunpowder || 0).toLocaleString()} Gunpowder`;
+
+    const hqmEl = document.getElementById("armory-hqm-count");
+    if (hqmEl) hqmEl.textContent = (resrc.hqm || 0).toLocaleString();
+
+    const metalEl = document.getElementById("armory-metal-count");
+    if (metalEl) metalEl.textContent = `${(resrc.metalFragments || 0).toLocaleString()} Metal Frags`;
+
+    // 3. Multi-TC Grid
+    renderMultiTcGrid(data.tcs || []);
+
+    if (userInitiated) showToast("Clan Armory & Multi-TC recalculated!", "success");
+  } catch (err) {
+    console.error("loadClanArmory error:", err);
+    if (userInitiated) showToast(err.message, "error");
+  }
+}
+
+function renderMultiTcGrid(tcs) {
+  const container = document.getElementById("clan-multitc-grid");
+  const subtabTcCount = document.getElementById("subtab-tc-count");
+  if (subtabTcCount) subtabTcCount.textContent = tcs.length;
+  if (!container) return;
+
+  if (tcs.length === 0) {
+    container.innerHTML = `<div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No Tool Cupboards paired with Storage Monitors. Pair your TC storage monitors using the Wire Tool!</div>`;
+    return;
+  }
+
+  container.innerHTML = tcs.map(tc => {
+    let statusClass = "bg-emerald-950/80 text-emerald-300 border-emerald-700";
+    let statusLabel = `🟢 ${tc.upkeepDays}d (${tc.upkeepHours}h)`;
+
+    if (tc.isDecaying) {
+      statusClass = "bg-red-950/80 text-red-300 border-red-700";
+      statusLabel = "🔴 DECAYING";
+    } else if (tc.upkeepHours < 24) {
+      statusClass = "bg-amber-950/80 text-amber-300 border-amber-700";
+      statusLabel = `🟡 WARNING (${tc.upkeepHours}h)`;
+    }
+
+    return `
+      <div class="bg-[#0b0e14] border border-[#1e2638] rounded-xl p-4 flex flex-col justify-between gap-3 font-mono text-xs shadow-md">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-cubes text-cyan-400"></i>
+            <h5 class="font-rust font-bold text-white text-sm truncate">${tc.name}</h5>
+          </div>
+          <span class="inline-block border px-2 py-0.5 rounded ${statusClass} text-[10px] font-bold">${statusLabel}</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-[#182133] text-gray-400">
+          <div>Wood: <b class="text-amber-300">${(tc.wood || 0).toLocaleString()}</b></div>
+          <div>Stone: <b class="text-gray-300">${(tc.stones || 0).toLocaleString()}</b></div>
+          <div>Metal: <b class="text-cyan-300">${(tc.metal || 0).toLocaleString()}</b></div>
+          <div>HQM: <b class="text-emerald-300">${(tc.hqm || 0).toLocaleString()}</b></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function refreshClanInfo(userInitiated = false) {
+  const btn = document.getElementById("btn-refresh-clan");
+  if (btn && userInitiated) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clan...`;
+  }
+  try {
+    const res = await fetch("/api/clan/info");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to fetch clan info");
+    state.clanInfo = data.clanInfo;
+    renderClanMotd();
+    renderClanAlumni();
+    if (userInitiated) {
+      if (data.clanInfo?.name) {
+        showToast(`Clan [${data.clanInfo.name}] refreshed! (${data.clanInfo.members?.length || 0} members)`, "success");
+      } else {
+        showToast("Clan info fetched (No active Facepunch clan detected on server)", "info");
+      }
+    }
+  } catch (err) {
+    if (userInitiated) showToast(err.message, "error");
+  } finally {
+    if (btn && userInitiated) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-castle text-amber-400"></i> Clan Info`;
+    }
+  }
+}
+
+function renderClanMotd() {
+  const clan = state.clanInfo;
+  const nameEl = document.getElementById("clan-info-name");
+  const tagEl = document.getElementById("clan-info-tag");
+  const authorEl = document.getElementById("clan-motd-author");
+  const updatedEl = document.getElementById("clan-motd-updated-at");
+  const textEl = document.getElementById("clan-motd-display-text");
+
+  if (nameEl) nameEl.textContent = clan?.name || "Facepunch Clan";
+  if (tagEl) tagEl.textContent = clan?.tag || (clan?.name ? clan.name.slice(0, 4) : "--");
+  if (authorEl) authorEl.textContent = clan?.motdAuthor ? `SteamID ${clan.motdAuthor}` : "Leader";
+  if (updatedEl) {
+    updatedEl.textContent = clan?.motdTimestamp ? new Date(Number(clan.motdTimestamp) * 1000).toLocaleString() : "Wipe Start";
+  }
+  if (textEl) {
+    textEl.textContent = clan?.motd ? `"${clan.motd}"` : `"No Clan MOTD currently set on server."`;
+  }
+}
+
+async function handleSaveClanMotd(event) {
+  event.preventDefault();
+  const input = document.getElementById("clan-motd-input");
+  const motd = input?.value?.trim();
+  if (!motd) return;
+
+  try {
+    showToast("Updating Clan MOTD in Rust...", "info");
+    const res = await fetch("/api/clan/motd", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motd })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to set clan MOTD");
+    showToast("📢 Clan MOTD updated across all clan members!", "success");
+    if (state.clanInfo) {
+      state.clanInfo.motd = motd;
+      state.clanInfo.motdTimestamp = Math.floor(Date.now() / 1000);
+    }
+    renderClanMotd();
+    if (input) input.value = "";
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function handleSendClanChat(event) {
+  event.preventDefault();
+  const input = document.getElementById("clan-chat-input");
+  const message = input?.value?.trim();
+  if (!message) return;
+
+  try {
+    const res = await fetch("/api/clan/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to send clan chat");
+    appendClanChatMessage({ sender: "You (Web)", message, time: Date.now() });
+    if (input) input.value = "";
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function appendClanChatMessage(msg) {
+  const stream = document.getElementById("clan-chat-stream");
+  if (!stream) return;
+
+  const timeStr = new Date(msg.time || Date.now()).toLocaleTimeString();
+  const el = document.createElement("div");
+  el.className = "bg-[#0b0e14] border border-[#2a251b] p-2 rounded-lg";
+  el.innerHTML = `
+    <div class="flex items-center justify-between text-[10px] text-gray-500 mb-0.5">
+      <span class="font-bold text-amber-400">🏰 ${msg.sender || "Clanmate"}</span>
+      <span>${timeStr}</span>
+    </div>
+    <div class="text-amber-100 text-xs">${msg.message}</div>
+  `;
+
+  stream.appendChild(el);
+  stream.scrollTop = stream.scrollHeight;
 }
 
 // ==========================================
@@ -2917,6 +3318,7 @@ async function loadTeamTelemetryData() {
     }
 
     renderTeamInfo();
+    renderClanAlumni();
   } catch (err) {
     console.error("loadTeamTelemetryData error:", err);
   }

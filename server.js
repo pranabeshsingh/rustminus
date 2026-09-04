@@ -126,6 +126,8 @@ rustManager.on("mapData", (data) => broadcast("map_updated", {
 }));
 rustManager.on("entityState", (data) => broadcast("entity_state", data));
 rustManager.on("teamMessage", (data) => broadcast("team_message", data));
+rustManager.on("clanInfo", (data) => broadcast("clan_info", data));
+rustManager.on("clanMessage", (data) => broadcast("clan_message", data));
 rustManager.on("mapMarkerSpawn", (data) => broadcast("map_event", data));
 rustManager.on("event", (data) => broadcast("event_log", data));
 
@@ -149,6 +151,8 @@ wss.on("connection", (ws) => {
     serverInfo: rustManager.serverInfo,
     teamInfo: rustManager.teamInfo,
     timeInfo: rustManager.timeInfo,
+    clanInfo: rustManager.clanInfo,
+    clanChat: rustManager.clanChatHistory || [],
     markers: Array.from(rustManager.activeMarkers?.values() || []),
     hasMap: !!rustManager.cachedMap,
     fcm: fcmService.getStatus(),
@@ -454,7 +458,59 @@ app.post("/api/automation/ttoggle", (req, res) => {
 
 // 3. Team Telemetry & AFK & Leaderboard APIs
 app.get("/api/team/telemetry", (req, res) => {
-  res.json({ success: true, ...rustManager.teamTracker.getTelemetryState() });
+  const telemetry = rustManager.teamTracker.getTelemetryState();
+  const armory = rustManager.storageTracker.getClanArmoryTotals();
+  res.json({ success: true, ...telemetry, armory });
+});
+
+// Clan System & Armory APIs
+app.get("/api/clan/info", async (req, res) => {
+  try {
+    if (rustManager.client && rustManager.client.isConnected()) {
+      await rustManager.fetchClanInfo();
+    }
+    res.json({ success: true, clanInfo: rustManager.clanInfo });
+  } catch (e) {
+    res.json({ success: false, error: e.message, clanInfo: rustManager.clanInfo });
+  }
+});
+
+app.get("/api/clan/chat", async (req, res) => {
+  try {
+    if (rustManager.client && rustManager.client.isConnected()) {
+      await rustManager.fetchClanChat();
+    }
+    res.json({ success: true, messages: rustManager.clanChatHistory || [] });
+  } catch (e) {
+    res.json({ success: false, error: e.message, messages: rustManager.clanChatHistory || [] });
+  }
+});
+
+app.post("/api/clan/chat", async (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: "Message required" });
+  try {
+    await rustManager.sendClanMessage(message);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/clan/motd", async (req, res) => {
+  const { motd } = req.body;
+  if (motd === undefined) return res.status(400).json({ error: "motd required" });
+  try {
+    await rustManager.setClanMotd(motd);
+    res.json({ success: true, motd });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/clan/armory", (req, res) => {
+  const armory = rustManager.storageTracker.getClanArmoryTotals();
+  res.json({ success: true, ...armory });
 });
 
 // 4. Tactical Calculators APIs

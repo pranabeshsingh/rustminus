@@ -773,66 +773,230 @@
         </div>
 
         <!-- 3. TEAM ROSTER & MAP POSITIONS (getTeamInfo) -->
+        <!-- 3. TEAM ROSTER & CLAN HUB (Active Squad, Clan Alumni, Armory & Multi-TC) -->
         <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436]">
             <div class="flex items-center gap-3">
               <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
-                <i class="fa-solid fa-shield-halved text-emerald-400"></i> Team Roster & Tactical Coordinates
+                <i class="fa-solid fa-shield-halved text-emerald-400"></i> Team Roster & Clan Hub
               </h3>
-              <span id="team-size-badge" class="bg-[#0b0e14] border border-[#20293a] px-2.5 py-0.5 rounded text-xs font-mono text-emerald-400">0 Members</span>
+              <span id="team-size-badge" class="bg-[#0b0e14] border border-[#20293a] px-2.5 py-0.5 rounded text-xs font-mono text-emerald-400">0 Active</span>
+              <span id="clan-total-badge" class="bg-[#0b0e14] border border-[#20293a] px-2.5 py-0.5 rounded text-xs font-mono text-amber-400">0 Clanmates</span>
             </div>
-            <button onclick="refreshTeamInfo(true)" id="btn-refresh-team" class="self-start sm:self-auto bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
-              <i class="fa-solid fa-arrows-rotate"></i> Refresh getTeamInfo
+            <div class="flex items-center gap-2">
+              <button onclick="refreshClanInfo(true)" id="btn-refresh-clan" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5" title="Refresh Facepunch Clan Info">
+                <i class="fa-solid fa-castle text-amber-400"></i> Clan Info
+              </button>
+              <button onclick="refreshTeamInfo(true)" id="btn-refresh-team" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-rotate"></i> Refresh Squad
+              </button>
+            </div>
+          </div>
+
+          <!-- Sub-Navigation for Team & Clan -->
+          <div class="flex flex-wrap items-center gap-2 border-b border-[#1c2436] pb-3">
+            <button onclick="switchTeamSubTab('active-squad')" id="subtab-btn-active-squad" class="team-subtab-btn px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-emerald-700/80 text-white border border-emerald-500 flex items-center gap-1.5 shadow">
+              <i class="fa-solid fa-users"></i> Active Squad (<span id="subtab-active-count">0</span>/8)
+            </button>
+            <button onclick="switchTeamSubTab('clan-alumni')" id="subtab-btn-clan-alumni" class="team-subtab-btn px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5">
+              <i class="fa-solid fa-user-clock"></i> Clan Alumni & History (<span id="subtab-alumni-count">0</span>)
+            </button>
+            <button onclick="switchTeamSubTab('clan-armory')" id="subtab-btn-clan-armory" class="team-subtab-btn px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5">
+              <i class="fa-solid fa-bomb text-amber-400"></i> Clan Armory & Boom (<span id="subtab-boom-val">0</span> S)
+            </button>
+            <button onclick="switchTeamSubTab('clan-multitc')" id="subtab-btn-clan-multitc" class="team-subtab-btn px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5">
+              <i class="fa-solid fa-cubes text-cyan-400"></i> Multi-TC Upkeep Grid (<span id="subtab-tc-count">0</span> TCs)
             </button>
           </div>
 
-          <!-- Team Summary Counters -->
-          <div class="flex flex-wrap gap-2 text-xs font-mono">
-            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
-              👑 Leader: <b id="team-leader-name" class="text-amber-400">--</b>
-            </span>
-            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
-              🟢 Online: <b id="team-online-count" class="text-emerald-400">0</b>
-            </span>
-            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
-              ❤️ Alive: <b id="team-alive-count" class="text-emerald-400">0</b>
-            </span>
-            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
-              💤 Sleeping: <b id="team-sleep-count" class="text-amber-400">0</b>
-            </span>
-            <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
-              💀 Dead: <b id="team-dead-count" class="text-red-400">0</b>
-            </span>
+          <!-- View 1: Active 8-Man Squad -->
+          <div id="team-subtab-active-squad" class="space-y-4">
+            <!-- Team Summary Counters -->
+            <div class="flex flex-wrap gap-2 text-xs font-mono">
+              <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+                👑 Leader: <b id="team-leader-name" class="text-amber-400">--</b>
+              </span>
+              <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+                🟢 Online: <b id="team-online-count" class="text-emerald-400">0</b>
+              </span>
+              <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+                ❤️ Alive: <b id="team-alive-count" class="text-emerald-400">0</b>
+              </span>
+              <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+                💤 Sleeping: <b id="team-sleep-count" class="text-amber-400">0</b>
+              </span>
+              <span class="bg-[#0b0e14] border border-[#1e2638] px-3 py-1 rounded-lg text-gray-300">
+                💀 Dead: <b id="team-dead-count" class="text-red-400">0</b>
+              </span>
+            </div>
+
+            <!-- Team Cards Grid -->
+            <div id="team-members-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No team members data loaded. Click Refresh getTeamInfo.</div>
+            </div>
           </div>
 
-          <!-- Team Cards Grid -->
-          <div id="team-members-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No team members data loaded. Click Refresh getTeamInfo.</div>
+          <!-- View 2: Clan Alumni & Wipe History (65-80 players) -->
+          <div id="team-subtab-clan-alumni" class="hidden space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl">
+              <div class="flex items-center gap-2 flex-1">
+                <i class="fa-solid fa-magnifying-glass text-gray-500 text-xs"></i>
+                <input type="text" id="clan-alumni-search" oninput="filterClanAlumni()" placeholder="Search clanmates by name or SteamID..."
+                  class="bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none w-full font-mono">
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-mono text-gray-500">Sort:</span>
+                <select id="clan-alumni-sort" onchange="filterClanAlumni()" class="bg-[#141b29] border border-[#222e44] rounded text-[11px] font-mono text-gray-300 px-2 py-1 focus:outline-none">
+                  <option value="lastSeen">Last Seen</option>
+                  <option value="playtime">Playtime</option>
+                  <option value="deaths">Deaths</option>
+                  <option value="distance">Distance</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Historical Alumni Cards Grid -->
+            <div id="clan-alumni-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
+              <div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No historical clan alumni recorded yet. Members who rotate through your team or clan will appear here.</div>
+            </div>
+          </div>
+
+          <!-- View 3: Clan Armory & Boom Aggregator -->
+          <div id="team-subtab-clan-armory" class="hidden space-y-4">
+            <!-- Total Raid Potential Hero Banner -->
+            <div class="bg-gradient-to-r from-red-950/70 via-[#18151f] to-[#121722] border border-red-900/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+              <div>
+                <span class="text-[11px] font-mono text-red-400 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-fire"></i> Total Clan Raid Sulfur Power
+                </span>
+                <h4 id="clan-total-sulfur-power" class="text-3xl font-rust font-bold text-white mt-0.5">0 Sulfur</h4>
+                <p class="text-[11px] font-mono text-gray-400 mt-0.5">Calculated across all paired storage monitors (crafted explosives + raw sulfur & GP equivalents)</p>
+              </div>
+              <button onclick="loadClanArmory(true)" class="self-start sm:self-auto bg-red-900 hover:bg-red-800 text-red-100 border border-red-700 px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-arrows-rotate"></i> Recalculate Boom
+              </button>
+            </div>
+
+            <!-- Explosives & Armory Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs">
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl text-center">
+                <span class="text-gray-400 block text-[10px] uppercase">🚀 Rockets</span>
+                <span id="armory-rockets-count" class="text-xl font-rust font-bold text-amber-400 block my-1">0</span>
+                <span id="armory-hv-rockets" class="text-[10px] text-gray-500 block">+0 HV / Fire</span>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl text-center">
+                <span class="text-gray-400 block text-[10px] uppercase">💥 Timed C4</span>
+                <span id="armory-c4-count" class="text-xl font-rust font-bold text-red-400 block my-1">0</span>
+                <span class="text-[10px] text-gray-500 block">2,200 S each</span>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl text-center">
+                <span class="text-gray-400 block text-[10px] uppercase">🧨 Satchels</span>
+                <span id="armory-satchels-count" class="text-xl font-rust font-bold text-orange-400 block my-1">0</span>
+                <span id="armory-beancans" class="text-[10px] text-gray-500 block">+0 Beancans</span>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl text-center">
+                <span class="text-gray-400 block text-[10px] uppercase">💥 Explo 5.56</span>
+                <span id="armory-explo-count" class="text-xl font-rust font-bold text-yellow-400 block my-1">0</span>
+                <span class="text-[10px] text-gray-500 block">Rifle ammo</span>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl text-center">
+                <span class="text-gray-400 block text-[10px] uppercase">🔥 Raw Sulfur</span>
+                <span id="armory-sulfur-count" class="text-xl font-rust font-bold text-amber-300 block my-1">0</span>
+                <span id="armory-gp-count" class="text-[10px] text-gray-400 block">0 Gunpowder</span>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-xl text-center">
+                <span class="text-gray-400 block text-[10px] uppercase">🧱 HQM / Metal</span>
+                <span id="armory-hqm-count" class="text-xl font-rust font-bold text-cyan-400 block my-1">0</span>
+                <span id="armory-metal-count" class="text-[10px] text-gray-400 block">0 Metal Frags</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- View 4: Multi-TC Upkeep Grid -->
+          <div id="team-subtab-clan-multitc" class="hidden space-y-4">
+            <div class="flex items-center justify-between text-xs font-mono text-gray-400 pb-1">
+              <span>Multi-TC Upkeep Status Across All Paired Tool Cupboards</span>
+              <button onclick="loadClanArmory(true)" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-2.5 py-1 rounded text-xs transition flex items-center gap-1">
+                <i class="fa-solid fa-arrows-rotate"></i> Refresh TCs
+              </button>
+            </div>
+            <div id="clan-multitc-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No Tool Cupboards detected with Storage Monitors. Pair a Storage Monitor to your main and external TCs!</div>
+            </div>
           </div>
         </div>
 
-        <!-- 4. IN-GAME TEAM CHAT & RELAY -->
-        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 flex flex-col h-[400px]">
-          <div class="flex items-center justify-between pb-3 border-b border-[#1c2436] mb-3">
-            <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
-              <i class="fa-solid fa-headset text-emerald-400"></i> In-Game Team Chat & Relay
-            </h3>
-            <span class="text-[11px] font-mono text-gray-400">Bridged to Matrix TeamChat Room</span>
+        <!-- 4. IN-GAME TEAM & CLAN CHAT & MOTD RELAY -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 flex flex-col h-[420px]">
+          <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#1c2436] mb-3 gap-2">
+            <div class="flex items-center gap-2">
+              <button onclick="switchChatSubTab('team-chat')" id="chat-subtab-btn-team" class="px-3 py-1 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-emerald-700/80 text-white border border-emerald-500 flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-headset"></i> Squad Chat
+              </button>
+              <button onclick="switchChatSubTab('clan-chat')" id="chat-subtab-btn-clan" class="px-3 py-1 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5">
+                <i class="fa-solid fa-castle text-amber-400"></i> Clan Chat
+              </button>
+              <button onclick="switchChatSubTab('clan-motd')" id="chat-subtab-btn-motd" class="px-3 py-1 rounded-lg text-xs font-rust uppercase font-bold tracking-wider transition bg-[#141b29] text-gray-400 hover:text-white border border-[#222e44] flex items-center gap-1.5">
+                <i class="fa-solid fa-bullhorn text-cyan-400"></i> Clan MOTD
+              </button>
+            </div>
+            <span class="text-[11px] font-mono text-gray-400">Bridged to Matrix &amp; Facepunch Clan</span>
           </div>
 
-          <!-- Chat Stream -->
-          <div id="team-chat-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs mb-3">
-            <p class="text-gray-500 italic">No in-game team chat received yet.</p>
+          <!-- Stream 1: In-Game Team Chat -->
+          <div id="chat-stream-team-container" class="flex-1 flex flex-col min-h-0">
+            <div id="team-chat-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs mb-3">
+              <p class="text-gray-500 italic">No in-game squad chat received yet.</p>
+            </div>
+            <form id="team-chat-form" class="flex gap-2 pt-2 border-t border-[#1c2436]">
+              <input type="text" id="team-chat-input" placeholder="Send message to in-game 8-man team chat..." 
+                class="flex-1 bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-rust-500 font-mono">
+              <button type="submit" class="bg-rust-700 hover:bg-rust-600 text-white font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg">
+                Send
+              </button>
+            </form>
           </div>
 
-          <!-- Chat Input -->
-          <form id="team-chat-form" class="flex gap-2 pt-2 border-t border-[#1c2436]">
-            <input type="text" id="team-chat-input" placeholder="Send message to in-game team chat..." 
-              class="flex-1 bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-rust-500 font-mono">
-            <button type="submit" class="bg-rust-700 hover:bg-rust-600 text-white font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg">
-              Send
-            </button>
-          </form>
+          <!-- Stream 2: Facepunch Clan Chat -->
+          <div id="chat-stream-clan-container" class="hidden flex-1 flex flex-col min-h-0">
+            <div id="clan-chat-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs mb-3">
+              <p class="text-gray-500 italic">No in-game Facepunch clan chat received yet.</p>
+            </div>
+            <form id="clan-chat-form" onsubmit="handleSendClanChat(event)" class="flex gap-2 pt-2 border-t border-[#1c2436]">
+              <input type="text" id="clan-chat-input" placeholder="Send message to in-game Clan Chat (broadcast to all 80 clanmates)..." 
+                class="flex-1 bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 font-mono">
+              <button type="submit" class="bg-amber-700 hover:bg-amber-600 text-white font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg">
+                Send Clan
+              </button>
+            </form>
+          </div>
+
+          <!-- Panel 3: Clan MOTD Editor -->
+          <div id="chat-stream-motd-container" class="hidden flex-1 flex flex-col justify-between overflow-y-auto custom-scrollbar space-y-3 font-mono text-xs">
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl space-y-2">
+              <div class="flex items-center justify-between text-[11px] text-gray-500">
+                <span>Current Clan MOTD:</span>
+                <span id="clan-motd-updated-at">--</span>
+              </div>
+              <p id="clan-motd-display-text" class="text-amber-300 text-sm font-semibold italic bg-[#141b29] p-3 rounded-lg border border-[#20293a]">
+                "No Clan MOTD set on server."
+              </p>
+              <div class="text-[11px] text-gray-400">
+                Clan: <b id="clan-info-name" class="text-white">--</b> | Tag: <b id="clan-info-tag" class="text-white">--</b> | Author: <b id="clan-motd-author" class="text-gray-300">--</b>
+              </div>
+            </div>
+
+            <form onsubmit="handleSaveClanMotd(event)" class="space-y-2 pt-2 border-t border-[#1c2436]">
+              <label class="block text-[11px] uppercase text-gray-400">Set New Clan MOTD (Broadcast to all clan members):</label>
+              <div class="flex gap-2">
+                <input type="text" id="clan-motd-input" required placeholder="Enter new Clan MOTD (e.g. Raid at 8PM EST! Farm Sulfur!)..."
+                  class="flex-1 bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-amber-500">
+                <button type="submit" class="bg-amber-700 hover:bg-amber-600 text-white font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg transition shadow">
+                  Update MOTD
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
 
         <!-- 5. WIPE LEADERBOARD & RECENT DEATHS -->
@@ -1760,19 +1924,24 @@
 
             <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
               <div class="font-rust uppercase font-bold text-emerald-400 text-sm flex items-center gap-1.5">
-                <i class="fa-solid fa-users"></i> Team Telemetry
+                <i class="fa-solid fa-users"></i> Team & Clan Telemetry
               </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!clan / !roster</code> - Active squad + 80-man alumni</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!motd [text]</code> - View / update Clan MOTD</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!proximity / !nearby</code> - Teammate distances</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!afk / !afk-all</code> - Inactive team standstills</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!death [player]</code> - Recent death coordinates</div>
-              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!lead [player]</code> - Team leader pin tracking</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!lead [player] / !promote</code> - Leader pin & promotion</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!kick &lt;player&gt;</code> - Remove teammate</div>
             </div>
 
             <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
               <div class="font-rust uppercase font-bold text-blue-400 text-sm flex items-center gap-1.5">
-                <i class="fa-solid fa-box-archive"></i> Storage & Upkeep
+                <i class="fa-solid fa-box-archive"></i> Armory, Boom & Multi-TC
               </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!boom / !sulfur</code> - Clan explosive & sulfur power</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!armory</code> - Full clan raid weapons breakdown</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!multitc / !tcs</code> - Multi-TC base decay overview</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!contents &lt;box&gt;</code> - Inspect container slots</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!contains &lt;item&gt;</code> - Search all storage boxes</div>
               <div class="text-gray-300"><code class="text-cyan-300 font-bold">!upkeep</code> - TC remaining protection time</div>
