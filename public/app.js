@@ -1960,6 +1960,8 @@ function switchTab(tabId) {
     renderTeamInfo();
   } else if (tabId === "markers") {
     renderMarkers();
+  } else if (tabId === "settings") {
+    loadSettings();
   }
 }
 
@@ -2163,3 +2165,185 @@ window.importRustPlusConfig = importRustPlusConfig;
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-import-config")?.addEventListener("click", importRustPlusConfig);
 });
+
+// ==========================================
+// SETTINGS & INTEGRATIONS
+// ==========================================
+
+async function loadSettings() {
+  try {
+    const res = await fetch("/api/settings");
+    if (!res.ok) throw new Error("Failed to load settings");
+    const data = await res.json();
+
+    if (data.ai) {
+      const toggle = document.getElementById("setting-ai-enabled");
+      const statusText = document.getElementById("setting-ai-status-text");
+      if (toggle) {
+        toggle.checked = !!data.ai.enabled;
+        if (statusText) {
+          statusText.textContent = data.ai.enabled ? "Enabled" : "Disabled";
+          statusText.className = data.ai.enabled
+            ? "ml-2 text-xs font-mono font-bold text-emerald-400"
+            : "ml-2 text-xs font-mono font-bold text-gray-400";
+        }
+      }
+
+      const radioGemini = document.getElementById("setting-ai-provider-gemini");
+      const radioOpenai = document.getElementById("setting-ai-provider-openai");
+      if (data.ai.provider === "openai") {
+        if (radioOpenai) radioOpenai.checked = true;
+      } else {
+        if (radioGemini) radioGemini.checked = true;
+      }
+
+      const modelInput = document.getElementById("setting-ai-model");
+      if (modelInput) modelInput.value = data.ai.model || "gemini-1.5-flash";
+
+      const keyStatus = document.getElementById("setting-ai-key-status");
+      if (keyStatus) {
+        keyStatus.textContent = data.ai.hasApiKey ? `Saved (${data.ai.apiKeyMasked})` : "Not configured";
+        keyStatus.className = data.ai.hasApiKey ? "text-[11px] text-emerald-400 font-mono" : "text-[11px] text-gray-500 font-mono";
+      }
+
+      const promptInput = document.getElementById("setting-ai-prompt");
+      if (promptInput) promptInput.value = data.ai.customPrompt || "";
+    }
+
+    if (data.externalApis) {
+      const steamStatus = document.getElementById("setting-steam-key-status");
+      if (steamStatus) {
+        steamStatus.textContent = data.externalApis.hasSteamApiKey ? `Saved (${data.externalApis.steamApiKeyMasked})` : "Not configured";
+        steamStatus.className = data.externalApis.hasSteamApiKey ? "text-[11px] text-emerald-400 font-mono" : "text-[11px] text-gray-500 font-mono";
+      }
+
+      const bmStatus = document.getElementById("setting-bm-token-status");
+      if (bmStatus) {
+        bmStatus.textContent = data.externalApis.hasBattleMetricsToken ? `Saved (${data.externalApis.battleMetricsTokenMasked})` : "Not configured";
+        bmStatus.className = data.externalApis.hasBattleMetricsToken ? "text-[11px] text-emerald-400 font-mono" : "text-[11px] text-gray-500 font-mono";
+      }
+
+      const bmServer = document.getElementById("setting-bm-serverid");
+      if (bmServer) bmServer.value = data.externalApis.battleMetricsServerId || "";
+    }
+  } catch (err) {
+    console.error("[Settings] Error loading:", err.message);
+  }
+}
+
+async function saveSettingsForm() {
+  const btn = document.getElementById("settings-save-btn");
+  const origHtml = btn ? btn.innerHTML : "";
+  if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+  const aiEnabled = document.getElementById("setting-ai-enabled")?.checked || false;
+  const aiProvider = document.querySelector('input[name="ai-provider"]:checked')?.value || "gemini";
+  const aiModel = document.getElementById("setting-ai-model")?.value.trim() || "";
+  const aiApiKey = document.getElementById("setting-ai-apikey")?.value.trim() || undefined;
+  const aiPrompt = document.getElementById("setting-ai-prompt")?.value.trim() || "";
+
+  const steamKey = document.getElementById("setting-steam-apikey")?.value.trim() || undefined;
+  const bmToken = document.getElementById("setting-bm-token")?.value.trim() || undefined;
+  const bmServerId = document.getElementById("setting-bm-serverid")?.value.trim() || "";
+
+  const payload = {
+    ai: {
+      enabled: aiEnabled,
+      provider: aiProvider,
+      model: aiModel,
+      apiKey: aiApiKey,
+      customPrompt: aiPrompt
+    },
+    externalApis: {
+      steamApiKey: steamKey,
+      battleMetricsToken: bmToken,
+      battleMetricsServerId: bmServerId
+    }
+  };
+
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save settings");
+
+    showToast("Settings updated successfully!", "success");
+
+    // Clear password inputs
+    const keyInput = document.getElementById("setting-ai-apikey");
+    if (keyInput) keyInput.value = "";
+    const steamInput = document.getElementById("setting-steam-apikey");
+    if (steamInput) steamInput.value = "";
+    const bmInput = document.getElementById("setting-bm-token");
+    if (bmInput) bmInput.value = "";
+
+    await loadSettings();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    if (btn) btn.innerHTML = origHtml;
+  }
+}
+
+function handleAiProviderChange() {
+  const provider = document.querySelector('input[name="ai-provider"]:checked')?.value;
+  const modelInput = document.getElementById("setting-ai-model");
+  if (modelInput) {
+    if (provider === "openai") {
+      modelInput.placeholder = "gpt-4o-mini";
+      if (!modelInput.value || modelInput.value.includes("gemini")) {
+        modelInput.value = "gpt-4o-mini";
+      }
+    } else {
+      modelInput.placeholder = "gemini-1.5-flash";
+      if (!modelInput.value || modelInput.value.includes("gpt-")) {
+        modelInput.value = "gemini-1.5-flash";
+      }
+    }
+  }
+}
+
+function selectModelPreset(val) {
+  if (!val) return;
+  const modelInput = document.getElementById("setting-ai-model");
+  if (modelInput) modelInput.value = val;
+
+  if (val.startsWith("gpt-")) {
+    const radio = document.getElementById("setting-ai-provider-openai");
+    if (radio) radio.checked = true;
+  } else if (val.startsWith("gemini-")) {
+    const radio = document.getElementById("setting-ai-provider-gemini");
+    if (radio) radio.checked = true;
+  }
+}
+
+function togglePasswordVisibility(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.type = el.type === "password" ? "text" : "password";
+}
+
+// Wire up dynamic toggle text change
+document.addEventListener("DOMContentLoaded", () => {
+  const aiToggle = document.getElementById("setting-ai-enabled");
+  if (aiToggle) {
+    aiToggle.addEventListener("change", () => {
+      const statusText = document.getElementById("setting-ai-status-text");
+      if (statusText) {
+        statusText.textContent = aiToggle.checked ? "Enabled" : "Disabled";
+        statusText.className = aiToggle.checked
+          ? "ml-2 text-xs font-mono font-bold text-emerald-400"
+          : "ml-2 text-xs font-mono font-bold text-gray-400";
+      }
+    });
+  }
+});
+
+window.loadSettings = loadSettings;
+window.saveSettingsForm = saveSettingsForm;
+window.handleAiProviderChange = handleAiProviderChange;
+window.selectModelPreset = selectModelPreset;
+window.togglePasswordVisibility = togglePasswordVisibility;
