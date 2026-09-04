@@ -214,6 +214,9 @@
           <button onclick="switchTab('diagnostics')" id="tab-btn-diagnostics" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
             <i class="fa-solid fa-stethoscope"></i> Matrix & Logs
           </button>
+          <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-sliders"></i> Settings & AI
+          </button>
         </nav>
       </div>
     </div>
@@ -889,6 +892,257 @@
           </div>
           <div id="system-events-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs">
             <!-- Event logs -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 8: SETTINGS & INTEGRATIONS -->
+      <!-- ================================================================= -->
+      <section id="tab-settings" class="tab-content hidden space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl">
+          <div>
+            <h2 class="text-2xl font-rust font-bold uppercase text-white flex items-center gap-3">
+              <i class="fa-solid fa-sliders text-rust-500"></i> Settings & Integrations
+            </h2>
+            <p class="text-xs font-mono text-gray-400 mt-1">Configure the AI Assistant, Steam Web API, and BattleMetrics player tracking.</p>
+          </div>
+          <button type="button" onclick="saveSettingsForm()" id="settings-save-btn" class="bg-rust-600 hover:bg-rust-500 text-white font-rust uppercase font-bold text-sm px-6 py-2.5 rounded-lg transition shadow-lg flex items-center gap-2">
+            <i class="fa-solid fa-floppy-disk"></i> Save Settings
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- AI Assistant Configuration Card -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-robot text-cyan-400"></i> AI Assistant Engine (!ai)
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Tactical in-game and Matrix AI consultant with server awareness.</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="setting-ai-enabled" class="sr-only peer">
+                <div class="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                <span id="setting-ai-status-text" class="ml-2 text-xs font-mono font-bold text-gray-400">Disabled</span>
+              </label>
+            </div>
+
+            <div class="space-y-4 font-mono text-xs">
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">AI Provider</label>
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-rust-500/50">
+                    <input type="radio" name="ai-provider" value="gemini" id="setting-ai-provider-gemini" checked onchange="handleAiProviderChange()" class="text-rust-500 focus:ring-0">
+                    <div>
+                      <div class="font-bold text-gray-200">Google Gemini</div>
+                      <div class="text-[10px] text-gray-500">Free tier, high rate limits</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-rust-500/50">
+                    <input type="radio" name="ai-provider" value="openai" id="setting-ai-provider-openai" onchange="handleAiProviderChange()" class="text-rust-500 focus:ring-0">
+                    <div>
+                      <div class="font-bold text-gray-200">OpenAI</div>
+                      <div class="text-[10px] text-gray-500">GPT-4o / GPT-4o-mini</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">Model Name</label>
+                <div class="flex gap-2">
+                  <input type="text" id="setting-ai-model" placeholder="gemini-1.5-flash"
+                    class="flex-1 bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
+                  <select id="setting-ai-model-preset" onchange="selectModelPreset(this.value)" class="bg-[#0b0e14] border border-[#1e2638] rounded-lg px-2 py-2 text-gray-300 focus:outline-none focus:border-rust-500">
+                    <option value="">Presets...</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fastest)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep reasoning)</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block uppercase text-gray-400">API Key</label>
+                  <span id="setting-ai-key-status" class="text-[11px] text-gray-500 font-mono">Not configured</span>
+                </div>
+                <div class="relative">
+                  <input type="password" id="setting-ai-apikey" placeholder="Enter Gemini or OpenAI API Key..."
+                    class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg pl-3 pr-10 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
+                  <button type="button" onclick="togglePasswordVisibility('setting-ai-apikey')" class="absolute right-3 top-2.5 text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-eye text-xs"></i>
+                  </button>
+                </div>
+                <p class="text-[10px] text-gray-500 mt-1">Keys are stored in data/config.json and never logged or committed.</p>
+              </div>
+
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">Custom System Instructions (Optional)</label>
+                <textarea id="setting-ai-prompt" rows="3" placeholder="e.g. Keep responses concise (under 2 sentences). Give specific rust tips on monuments, crafting, and counter-raiding."
+                  class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg p-3 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500 resize-none"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- External APIs Integration Card -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+            <div class="border-b border-[#1c2538] pb-4">
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-plug text-rust-500"></i> External Intelligence APIs
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Steam Web API and BattleMetrics player & server querying.</p>
+            </div>
+
+            <div class="space-y-4 font-mono text-xs">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block uppercase text-gray-400">Steam Web API Key</label>
+                  <span id="setting-steam-key-status" class="text-[11px] text-gray-500 font-mono">Not configured</span>
+                </div>
+                <div class="relative">
+                  <input type="password" id="setting-steam-apikey" placeholder="Enter Steam API Key..."
+                    class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg pl-3 pr-10 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
+                  <button type="button" onclick="togglePasswordVisibility('setting-steam-apikey')" class="absolute right-3 top-2.5 text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-eye text-xs"></i>
+                  </button>
+                </div>
+                <p class="text-[10px] text-gray-500 mt-1">Enables <code class="text-rust-400">!steamid &lt;user&gt;</code> (VAC bans, profile info) and <code class="text-rust-400">!stats &lt;user&gt;</code> (official Rust playtime/kills).</p>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block uppercase text-gray-400">BattleMetrics API Token</label>
+                  <span id="setting-bm-token-status" class="text-[11px] text-gray-500 font-mono">Not configured</span>
+                </div>
+                <div class="relative">
+                  <input type="password" id="setting-bm-token" placeholder="Enter BattleMetrics Token (Bearer)..."
+                    class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg pl-3 pr-10 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
+                  <button type="button" onclick="togglePasswordVisibility('setting-bm-token')" class="absolute right-3 top-2.5 text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-eye text-xs"></i>
+                  </button>
+                </div>
+                <p class="text-[10px] text-gray-500 mt-1">Enables <code class="text-rust-400">!whois &lt;player&gt;</code> and real-time enemy online alert tracking.</p>
+              </div>
+
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">Default BattleMetrics Server ID (Optional)</label>
+                <input type="text" id="setting-bm-serverid" placeholder="e.g. 12345678"
+                  class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
+                <p class="text-[10px] text-gray-500 mt-1">Server ID on battlemetrics.com to automatically cross-reference player joins.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Command Cheatsheet Card -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
+            <div>
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-terminal text-emerald-400"></i> Command Reference Cheatsheet
+              </h3>
+              <p class="text-xs font-mono text-gray-400">All commands operate via In-Game Team Chat and Matrix <b class="text-gray-200">#team-chat</b>.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-mono text-xs">
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-rust-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-bomb"></i> Raiding Durability
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!c4 &lt;target&gt;</code> - C4 required</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!rocket &lt;target&gt;</code> - Rockets required</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!satchel &lt;target&gt;</code> - Satchels required</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!explo &lt;target&gt;</code> - Explosive ammo required</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!durability &lt;target&gt;</code> - Full raid breakdown</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-amber-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-hammer"></i> Craft & Recycle
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!craft [qty] &lt;item&gt;</code> - Resource cost</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!mix &lt;item&gt;</code> - Mixing table recipes</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!recycle [qty] &lt;item&gt;</code> - Recycler output</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!recbox &lt;container&gt;</code> - Recycle box contents</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-cyan-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-map-pin"></i> Monuments & Puzzles
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!monument &lt;name&gt;</code> - Monument overview</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!rad &lt;monument&gt;</code> - Radiation protection</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!keycard [color]</code> - Puzzle requirements</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-red-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-crosshairs"></i> Turrets & Defense
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!turret-add &lt;name&gt;</code> - Record turret coords</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!turret-check [name]</code> - 40m interference check</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!sam-delay [seconds]</code> - Auto re-arm delay</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!sam-voice</code> - 10s voice alert countdown</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-yellow-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-clock"></i> Automation Triggers
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!auto-on &lt;time&gt; &lt;switch&gt;</code> - Delayed on</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!auto-off &lt;time&gt; &lt;switch&gt;</code> - Delayed off</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!day-on / !night-on</code> - Solar cycle trigger</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!teamoffline-on &lt;switch&gt;</code> - Sleep defense</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!alarms / !activated</code> - Alarm history log</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-emerald-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-users"></i> Team Telemetry
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!proximity / !nearby</code> - Teammate distances</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!afk / !afk-all</code> - Inactive team standstills</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!death [player]</code> - Recent death coordinates</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!lead [player]</code> - Team leader pin tracking</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!kick &lt;player&gt;</code> - Remove teammate</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-blue-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-box-archive"></i> Storage & Upkeep
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!contents &lt;box&gt;</code> - Inspect container slots</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!contains &lt;item&gt;</code> - Search all storage boxes</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!upkeep</code> - TC remaining protection time</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!monitor &lt;box&gt;</code> - Real-time item diff alerts</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-purple-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-brain"></i> AI & Team Notes
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!ai &lt;question&gt;</code> - Ask AI (if enabled)</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!note &lt;name&gt; &lt;text&gt;</code> - Save team note</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!notes</code> - View stored team notes</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!notes-clear</code> - Wipe saved notes</div>
+            </div>
+
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-1.5">
+              <div class="font-rust uppercase font-bold text-indigo-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-toolbox"></i> Tactical Utilities
+              </div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!timer &lt;time&gt; [msg]</code> - In-game reminder</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!stopwatch [start|stop]</code> - Elapsed timer</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!calc &lt;expression&gt;</code> - Quick calculator</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!roll [max] / !fortune</code> - Random rolls</div>
+              <div class="text-gray-300"><code class="text-cyan-300 font-bold">!voice &lt;text&gt;</code> - Speak in Matrix voice call</div>
+            </div>
           </div>
         </div>
       </section>

@@ -97,7 +97,15 @@ const initialConfig = readConfig();
 const matrixClient = new MatrixClient(initialConfig.matrix || {});
 
 // Initialize RustPlus Manager
-const rustManager = new RustPlusManager(matrixClient, readServers, saveServers);
+const rustManager = new RustPlusManager(matrixClient, readServers, saveServers, configManager);
+
+// Matrix E2EE Commands & TeamChat Relay
+matrixClient.setCommandHandler(async (cmd, src, sender) => {
+  return await rustManager.commandProcessor.handleCommand(cmd, src, sender);
+});
+matrixClient.setTeamChatRelay(async (msg) => {
+  return await rustManager.sendTeamChat(msg);
+});
 
 // Initialize FCM Service
 const fcmService = new FCMService(configManager, rustManager, matrixClient);
@@ -210,6 +218,96 @@ app.get("/api/status", (req, res) => {
 
 app.get("/api/events", (req, res) => {
   res.json({ events: rustManager.recentEvents });
+});
+
+// Settings API (AI Assistant & External Integrations)
+app.get("/api/settings", (req, res) => {
+  const cfg = readConfig();
+  const ai = cfg.ai || {
+    enabled: false,
+    provider: "gemini",
+    apiKey: "",
+    model: "gemini-1.5-flash",
+    customPrompt: ""
+  };
+  const externalApis = cfg.externalApis || {
+    steamApiKey: "",
+    battleMetricsToken: "",
+    battleMetricsServerId: ""
+  };
+
+  const maskKey = (k) => {
+    if (!k || typeof k !== "string") return "";
+    if (k.length <= 8) return "********";
+    return k.slice(0, 4) + "..." + k.slice(-4);
+  };
+
+  res.json({
+    success: true,
+    ai: {
+      enabled: !!ai.enabled,
+      provider: ai.provider || "gemini",
+      apiKeyMasked: maskKey(ai.apiKey),
+      hasApiKey: !!ai.apiKey,
+      model: ai.model || (ai.provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"),
+      customPrompt: ai.customPrompt || ""
+    },
+    externalApis: {
+      steamApiKeyMasked: maskKey(externalApis.steamApiKey),
+      hasSteamApiKey: !!externalApis.steamApiKey,
+      battleMetricsTokenMasked: maskKey(externalApis.battleMetricsToken),
+      hasBattleMetricsToken: !!externalApis.battleMetricsToken,
+      battleMetricsServerId: externalApis.battleMetricsServerId || ""
+    }
+  });
+});
+
+app.post("/api/settings", (req, res) => {
+  const { ai, externalApis } = req.body;
+  const cfg = readConfig();
+
+  if (!cfg.ai) {
+    cfg.ai = {
+      enabled: false,
+      provider: "gemini",
+      apiKey: "",
+      model: "gemini-1.5-flash",
+      customPrompt: ""
+    };
+  }
+  if (!cfg.externalApis) {
+    cfg.externalApis = {
+      steamApiKey: "",
+      battleMetricsToken: "",
+      battleMetricsServerId: ""
+    };
+  }
+
+  if (ai && typeof ai === "object") {
+    if (typeof ai.enabled === "boolean") cfg.ai.enabled = ai.enabled;
+    if (ai.provider && (ai.provider === "gemini" || ai.provider === "openai")) cfg.ai.provider = ai.provider;
+    if (ai.model && typeof ai.model === "string") cfg.ai.model = ai.model.trim();
+    if (ai.customPrompt !== undefined) cfg.ai.customPrompt = String(ai.customPrompt).trim();
+    if (ai.apiKey && typeof ai.apiKey === "string" && !ai.apiKey.includes("...")) {
+      cfg.ai.apiKey = ai.apiKey.trim();
+    }
+  }
+
+  if (externalApis && typeof externalApis === "object") {
+    if (externalApis.steamApiKey && typeof externalApis.steamApiKey === "string" && !externalApis.steamApiKey.includes("...")) {
+      cfg.externalApis.steamApiKey = externalApis.steamApiKey.trim();
+    }
+    if (externalApis.battleMetricsToken && typeof externalApis.battleMetricsToken === "string" && !externalApis.battleMetricsToken.includes("...")) {
+      cfg.externalApis.battleMetricsToken = externalApis.battleMetricsToken.trim();
+    }
+    if (externalApis.battleMetricsServerId !== undefined) {
+      cfg.externalApis.battleMetricsServerId = String(externalApis.battleMetricsServerId).trim();
+    }
+  }
+
+  saveConfig(cfg);
+  rustManager.logEvent("settings", "Settings Updated", "AI Assistant and External Integration settings updated.");
+  res.json({ success: true, message: "Settings saved successfully." });
 });
 
 // Servers Management

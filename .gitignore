@@ -55,3 +55,4 @@ Thumbs.db
 .vscode/
 .npm/
 snap/
+data/team_stats.json
