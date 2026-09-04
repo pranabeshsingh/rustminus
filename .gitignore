@@ -56,3 +56,5 @@ Thumbs.db
 .npm/
 snap/
 data/team_stats.json
+data/team_history.json
+data/clan_squads.json

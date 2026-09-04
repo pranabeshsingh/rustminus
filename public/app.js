@@ -288,10 +288,17 @@ function handleWebSocketMessage(msg) {
       refreshMarkers(false);
       break;
 
+    case "base_lockdown":
+      handleLockdownState(payload);
+      break;
+
     case "event_log":
       state.recentEvents.unshift(payload);
       if (state.recentEvents.length > 100) state.recentEvents.pop();
       renderSystemLogs();
+      if (payload.type === "raid") {
+        playRaidSiren();
+      }
       break;
 
     case "pairing_log":
@@ -1204,6 +1211,11 @@ function renderClanAlumni() {
     );
   }
 
+  // Squad Filter
+  if (state.squadFilter) {
+    list = list.filter(m => (m.squad || "Unassigned").toLowerCase() === state.squadFilter.toLowerCase());
+  }
+
   // Sort
   list.sort((a, b) => {
     if (sortBy === "playtime") return (b.playTimeSec || 0) - (a.playTimeSec || 0);
@@ -1220,6 +1232,7 @@ function renderClanAlumni() {
   container.innerHTML = list.map(m => {
     const initials = (m.name || "C").slice(0, 2).toUpperCase();
     const roleBadge = m.clanRole !== null && m.clanRole !== undefined ? `<span class="text-[9px] bg-[#141b29] text-amber-400 border border-[#222e44] px-1 py-0.5 rounded">Rank ${m.clanRole}</span>` : "";
+    const squadTag = m.squad || "Unassigned";
 
     return `
       <div class="bg-[#0b0e14] border border-[#1e2638] rounded-xl p-3.5 flex flex-col justify-between gap-2.5 font-mono text-xs shadow-md">
@@ -1248,6 +1261,15 @@ function renderClanAlumni() {
           <div>AFK Standstill: <b class="text-amber-400">${m.afkTimeFormatted || "0s"}</b></div>
           <div>Deaths: <b class="text-red-400">${m.totalDeaths || 0}</b></div>
           <div>Traveled: <b class="text-cyan-300">${m.distanceFormatted || "0m"}</b></div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-[#182133] text-[11px]">
+          <span class="bg-[#141b29] text-cyan-300 border border-[#222e44] px-2 py-0.5 rounded font-bold flex items-center gap-1">
+            <i class="fa-solid fa-users text-[9px]"></i> ${squadTag}
+          </span>
+          <button onclick="promptAssignSquad('${m.steamId}', '${encodeURIComponent(m.name || m.steamId)}')" class="bg-[#141b29] hover:bg-rust-700 text-gray-300 hover:text-white px-2 py-0.5 rounded border border-[#222e44] transition flex items-center gap-1">
+            <i class="fa-solid fa-pen text-[9px]"></i> Squad
+          </button>
         </div>
       </div>
     `;
@@ -2002,6 +2024,70 @@ function redrawMap() {
       mapCtx.fillRect(px - nameW / 2 - 4 / totalScale, py - 22 / totalScale, nameW + 8 / totalScale, 15 / totalScale);
       mapCtx.fillStyle = isLeader ? "#fcd34d" : "#ffffff";
       mapCtx.fillText(nameText, px, py - 9 / totalScale);
+    }
+  }
+
+  // 7. Draw Squad Death Markers (💀)
+  const showDeaths = document.getElementById("layer-deaths")?.checked ?? true;
+  const recentDeaths = state.telemetry?.deaths || state.telemetry?.recentDeaths || [];
+  if (showDeaths && recentDeaths.length > 0) {
+    mapCtx.font = `bold ${Math.max(9, 12 / totalScale)}px "Inter", sans-serif`;
+    mapCtx.textAlign = "center";
+    mapCtx.textBaseline = "middle";
+
+    for (const d of recentDeaths.slice(0, 10)) {
+      if (d.x === undefined || d.y === undefined) continue;
+      const px = toImgX(d.x);
+      const py = toImgY(d.y);
+
+      // Outer death aura
+      mapCtx.beginPath();
+      mapCtx.arc(px, py, 11 / totalScale, 0, Math.PI * 2);
+      mapCtx.fillStyle = "rgba(220, 38, 38, 0.35)";
+      mapCtx.fill();
+      mapCtx.strokeStyle = "#ef4444";
+      mapCtx.lineWidth = 1.5 / totalScale;
+      mapCtx.stroke();
+
+      // Skull
+      mapCtx.fillText("💀", px, py);
+
+      // Label below
+      const deathLabel = `${d.name || "Teammate"} (${d.timeAgo || d.agoDuration || "recent"})`;
+      const lw = mapCtx.measureText(deathLabel).width;
+      mapCtx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      mapCtx.fillRect(px - lw / 2 - 3 / totalScale, py + 12 / totalScale, lw + 6 / totalScale, 13 / totalScale);
+      mapCtx.fillStyle = "#fca5a5";
+      mapCtx.fillText(deathLabel, px, py + 19 / totalScale);
+    }
+  }
+
+  // 8. Draw Team Map Notes & Leader Pings
+  const mapNotes = [...(state.teamInfo?.mapNotes || []), ...(state.teamInfo?.leaderMapNotes || [])];
+  if (mapNotes.length > 0) {
+    mapCtx.font = `bold ${Math.max(9, 12 / totalScale)}px "Inter", sans-serif`;
+    mapCtx.textAlign = "center";
+    mapCtx.textBaseline = "bottom";
+
+    for (const n of mapNotes) {
+      if (n.x === undefined || n.y === undefined) continue;
+      const px = toImgX(n.x);
+      const py = toImgY(n.y);
+
+      mapCtx.beginPath();
+      mapCtx.arc(px, py, 7 / totalScale, 0, Math.PI * 2);
+      mapCtx.fillStyle = "rgba(234, 179, 8, 0.5)";
+      mapCtx.fill();
+      mapCtx.strokeStyle = "#eab308";
+      mapCtx.lineWidth = 2 / totalScale;
+      mapCtx.stroke();
+
+      const noteText = n.label ? `📍 ${n.label}` : "📍 Ping";
+      const nw = mapCtx.measureText(noteText).width;
+      mapCtx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      mapCtx.fillRect(px - nw / 2 - 3 / totalScale, py - 20 / totalScale, nw + 6 / totalScale, 13 / totalScale);
+      mapCtx.fillStyle = "#fef08a";
+      mapCtx.fillText(noteText, px, py - 9 / totalScale);
     }
   }
 
@@ -3933,6 +4019,324 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// ==========================================
+// 9. COMPOUND LOCKDOWN & WEB AUDIO SIREN
+// ==========================================
+let audioCtx = null;
+let sirenOsc = null;
+let sirenGain = null;
+let isSirenPlaying = false;
+let isAudioMuted = false;
+
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      audioCtx = new AudioContextClass();
+    }
+  }
+}
+
+function playRaidSiren() {
+  if (isAudioMuted || isSirenPlaying) return;
+  try {
+    initAudio();
+    if (!audioCtx) return;
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    isSirenPlaying = true;
+    sirenOsc = audioCtx.createOscillator();
+    sirenGain = audioCtx.createGain();
+    sirenOsc.type = "sawtooth";
+    sirenGain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+
+    const now = audioCtx.currentTime;
+    sirenOsc.frequency.setValueAtTime(650, now);
+    for (let i = 0; i < 20; i++) {
+      sirenOsc.frequency.linearRampToValueAtTime(1150, now + i * 1.0 + 0.5);
+      sirenOsc.frequency.linearRampToValueAtTime(650, now + i * 1.0 + 1.0);
+    }
+
+    sirenOsc.connect(sirenGain);
+    sirenGain.connect(audioCtx.destination);
+    sirenOsc.start();
+
+    setTimeout(() => stopRaidSiren(), 15000);
+  } catch (e) {
+    console.warn("[Siren] Playback error:", e);
+  }
+}
+
+function stopRaidSiren() {
+  if (!isSirenPlaying) return;
+  try {
+    if (sirenOsc) {
+      sirenOsc.stop();
+      sirenOsc.disconnect();
+      sirenOsc = null;
+    }
+  } catch (e) {}
+  isSirenPlaying = false;
+}
+
+function toggleAudioMute() {
+  isAudioMuted = !isAudioMuted;
+  const icon = document.getElementById("icon-audio-mute");
+  if (isAudioMuted) {
+    stopRaidSiren();
+    if (icon) icon.className = "fa-solid fa-volume-xmark text-red-400";
+    showToast("Siren audio muted 🔇", "info");
+  } else {
+    initAudio();
+    if (icon) icon.className = "fa-solid fa-volume-high text-emerald-400";
+    showToast("Siren audio unmuted 🔊", "success");
+  }
+}
+
+async function toggleCompoundLockdown() {
+  const isCurrentlyActive = state.lockdownActive;
+  if (!isCurrentlyActive) {
+    if (!confirm("🚨 EMERGENCY: Activate Compound Lockdown? This will turn ON all Auto-Turrets, SAM sites, CLOSE all doors, and sound base alarms!")) return;
+    try {
+      showToast("Activating compound lockdown...", "warning");
+      const res = await fetch("/api/base/lockdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "on", reason: "WebUI Manual Alert" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lockdown trigger failed");
+      showToast("🚨 COMPOUND LOCKDOWN ACTIVATED!", "error");
+      handleLockdownState({ active: true, alarmName: "Manual Squad Lockdown" });
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  } else {
+    cancelCompoundLockdown();
+  }
+}
+
+async function cancelCompoundLockdown() {
+  try {
+    const res = await fetch("/api/base/lockdown", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "off" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Cancel lockdown failed");
+    stopRaidSiren();
+    showToast("🟢 Compound lockdown cancelled. Stand down.", "success");
+    handleLockdownState({ active: false });
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function handleLockdownState(data) {
+  state.lockdownActive = !!data.active;
+  const banner = document.getElementById("lockdown-banner");
+  const bannerText = document.getElementById("lockdown-banner-text");
+  const btn = document.getElementById("btn-lockdown");
+  const label = document.getElementById("label-lockdown");
+
+  if (data.active) {
+    if (banner) {
+      banner.classList.remove("hidden");
+      if (bannerText) {
+        bannerText.textContent = `🚨 ${data.alarmName || "Base Alarm"} triggered! Turrets: ON | SAMs: ON | Doors: CLOSED.`;
+      }
+    }
+    if (btn) {
+      btn.className = "bg-red-600 hover:bg-red-500 text-white border border-red-400 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-rust uppercase font-bold tracking-wider text-xs shadow-lg animate-pulse";
+    }
+    if (label) label.textContent = "STAND DOWN";
+    playRaidSiren();
+  } else {
+    if (banner) banner.classList.add("hidden");
+    if (btn) {
+      btn.className = "bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-white border border-red-700/80 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-rust uppercase font-bold tracking-wider text-xs shadow";
+    }
+    if (label) label.textContent = "Lockdown";
+    stopRaidSiren();
+  }
+}
+
+// ==========================================
+// 10. SQUAD MANAGEMENT & RAID CALCULATOR
+// ==========================================
+function setSquadFilter(sq) {
+  state.squadFilter = sq || "";
+  document.querySelectorAll(".squad-filter-btn").forEach(b => {
+    b.classList.remove("active", "bg-rust-700", "text-white", "font-bold");
+    b.classList.add("bg-[#141b29]", "text-gray-300");
+  });
+  const activeBtn = document.getElementById(sq ? `squad-filter-${sq}` : "squad-filter-all");
+  if (activeBtn) {
+    activeBtn.classList.remove("bg-[#141b29]", "text-gray-300");
+    activeBtn.classList.add("active", "bg-rust-700", "text-white", "font-bold");
+  }
+  renderClanAlumni();
+}
+
+async function promptAssignSquad(steamId, encodedName) {
+  const name = decodeURIComponent(encodedName || steamId);
+  const squad = prompt(`Assign squad for ${name}:\n(e.g. Alpha, Bravo, Roam, Farm, Defense, Pilots, or 'clear' to unassign)`, "Alpha");
+  if (squad === null) return;
+
+  try {
+    const res = await fetch("/api/clan/squads/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ steamId, squad })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to assign squad");
+    showToast(data.message || `Assigned ${name} to squad!`, "success");
+    if (typeof loadTeamTelemetryData === "function") {
+      await loadTeamTelemetryData();
+    }
+    renderClanAlumni();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function addRaidTargetPreset(preset) {
+  const input = document.getElementById("raid-calc-input");
+  if (!input) return;
+  const current = input.value.trim();
+  if (!current) {
+    input.value = preset;
+  } else {
+    input.value = `${current}, ${preset}`;
+  }
+}
+
+function clearRaidTargetInput() {
+  const input = document.getElementById("raid-calc-input");
+  const res = document.getElementById("raid-calc-result");
+  const badge = document.getElementById("raid-calc-status-badge");
+  if (input) input.value = "";
+  if (res) {
+    res.innerHTML = "";
+    res.classList.add("hidden");
+  }
+  if (badge) {
+    badge.className = "px-2 py-0.5 rounded bg-dark-border text-gray-400";
+    badge.textContent = "Ready";
+  }
+}
+
+async function runRaidCalculator() {
+  const input = document.getElementById("raid-calc-input");
+  const resDiv = document.getElementById("raid-calc-result");
+  const badge = document.getElementById("raid-calc-status-badge");
+  const target = input?.value?.trim();
+  if (!target) {
+    showToast("Please enter target structure(s) to raid", "warning");
+    return;
+  }
+
+  try {
+    if (badge) {
+      badge.className = "px-2 py-0.5 rounded bg-blue-950 text-blue-400 animate-pulse";
+      badge.textContent = "Calculating...";
+    }
+    const res = await fetch("/api/clan/raid-calculator", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || "Calculation failed");
+
+    if (resDiv) {
+      resDiv.classList.remove("hidden");
+      const tot = data.totals || {};
+      const arm = data.armory;
+
+      let readinessHtml = "";
+      if (arm) {
+        if (arm.canRaidWithRockets) {
+          readinessHtml = `<div class="p-2.5 rounded bg-emerald-950/70 border border-emerald-700 text-emerald-300 font-bold flex items-center justify-between">
+            <span><i class="fa-solid fa-circle-check mr-1.5"></i> READY FOR ROCKET RAID!</span>
+            <span class="text-xs">Armory: ${arm.rocketsHave}/${arm.rocketsNeed} Rockets</span>
+          </div>`;
+          if (badge) {
+            badge.className = "px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-800";
+            badge.textContent = "✅ Boom Ready";
+          }
+        } else if (arm.canRaidWithC4) {
+          readinessHtml = `<div class="p-2.5 rounded bg-emerald-950/70 border border-emerald-700 text-emerald-300 font-bold flex items-center justify-between">
+            <span><i class="fa-solid fa-circle-check mr-1.5"></i> READY FOR C4 RAID!</span>
+            <span class="text-xs">Armory: ${arm.c4Have}/${arm.c4Need} C4</span>
+          </div>`;
+          if (badge) {
+            badge.className = "px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-800";
+            badge.textContent = "✅ Boom Ready";
+          }
+        } else if (arm.canRaidWithTotalSulfur) {
+          readinessHtml = `<div class="p-2.5 rounded bg-amber-950/70 border border-amber-700 text-amber-300 font-bold flex items-center justify-between">
+            <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> CRAFTING REQUIRED (Sulfur is available)</span>
+            <span class="text-xs">Have: ${arm.sulfurHave.toLocaleString()} / Need: ${arm.sulfurNeed.toLocaleString()} S</span>
+          </div>`;
+          if (badge) {
+            badge.className = "px-2 py-0.5 rounded bg-amber-950 text-amber-400 font-bold border border-amber-800";
+            badge.textContent = "🟡 Crafting Ready";
+          }
+        } else {
+          const shortRockets = Math.max(0, arm.rocketsNeed - arm.rocketsHave);
+          const shortSulfur = Math.max(0, arm.sulfurNeed - arm.sulfurHave);
+          readinessHtml = `<div class="p-2.5 rounded bg-red-950/70 border border-red-800 text-red-300 font-bold flex items-center justify-between">
+            <span><i class="fa-solid fa-circle-xmark mr-1.5"></i> SHORT ON BOOM</span>
+            <span class="text-xs">Need +${shortRockets} Rockets or +${shortSulfur.toLocaleString()} Sulfur</span>
+          </div>`;
+          if (badge) {
+            badge.className = "px-2 py-0.5 rounded bg-red-950 text-red-400 font-bold border border-red-800";
+            badge.textContent = "❌ Short on Boom";
+          }
+        }
+      }
+
+      resDiv.innerHTML = `
+        <div class="flex items-center justify-between border-b border-[#222e44] pb-2">
+          <span class="text-white font-bold">${escapeHtml(data.query)}</span>
+          <span class="text-gray-400">${(tot.minSulfur || 0).toLocaleString()} Raw Sulfur Cost</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+          <div class="bg-[#0b0e14] p-2 rounded border border-[#1e2638]">
+            <span class="text-[10px] text-gray-400 uppercase block">🚀 Rockets</span>
+            <span class="text-base font-bold text-amber-400">${tot.rockets || 0}x</span>
+            <span class="text-[10px] text-gray-500 block">~${(tot.sulfurRockets || 0).toLocaleString()} S</span>
+          </div>
+          <div class="bg-[#0b0e14] p-2 rounded border border-[#1e2638]">
+            <span class="text-[10px] text-gray-400 uppercase block">💥 C4</span>
+            <span class="text-base font-bold text-red-400">${tot.c4 || 0}x</span>
+            <span class="text-[10px] text-gray-500 block">~${(tot.sulfurC4 || 0).toLocaleString()} S</span>
+          </div>
+          <div class="bg-[#0b0e14] p-2 rounded border border-[#1e2638]">
+            <span class="text-[10px] text-gray-400 uppercase block">🧨 Satchels</span>
+            <span class="text-base font-bold text-orange-400">${tot.satchels || 0}x</span>
+          </div>
+          <div class="bg-[#0b0e14] p-2 rounded border border-[#1e2638]">
+            <span class="text-[10px] text-gray-400 uppercase block">💥 Explo 5.56</span>
+            <span class="text-base font-bold text-yellow-400">${(tot.explo || 0).toLocaleString()}x</span>
+          </div>
+        </div>
+        ${readinessHtml}
+      `;
+    }
+  } catch (err) {
+    if (badge) {
+      badge.className = "px-2 py-0.5 rounded bg-red-950 text-red-400";
+      badge.textContent = "Error";
+    }
+    showToast(err.message, "error");
+  }
+}
+
 // Expose all functions to window for DOM onclick attributes
 window.loadStorageAndUpkeepData = loadStorageAndUpkeepData;
 window.refreshStorageData = refreshStorageData;
@@ -3971,3 +4375,15 @@ window.loadWatchlistData = loadWatchlistData;
 window.handleAddWatchlist = handleAddWatchlist;
 window.handleDeleteWatchlist = handleDeleteWatchlist;
 window.handleWebUiAiChat = handleWebUiAiChat;
+
+window.playRaidSiren = playRaidSiren;
+window.stopRaidSiren = stopRaidSiren;
+window.toggleAudioMute = toggleAudioMute;
+window.toggleCompoundLockdown = toggleCompoundLockdown;
+window.cancelCompoundLockdown = cancelCompoundLockdown;
+window.setSquadFilter = setSquadFilter;
+window.promptAssignSquad = promptAssignSquad;
+window.addRaidTargetPreset = addRaidTargetPreset;
+window.clearRaidTargetInput = clearRaidTargetInput;
+window.runRaidCalculator = runRaidCalculator;
+window.redrawMap = redrawMap;
