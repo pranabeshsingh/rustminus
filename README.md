@@ -60,7 +60,8 @@
   - ✈️ **Pilots** (Scrappy / Mini-Copter Transports)
   - ⚪ **Unassigned** (Incoming Recruits / Alumni)
 - **Persistent Squad Storage:** Squad designations persist across wipes in `data/clan_squads.json`, with quick filtering tabs in the WebUI and in-game `!setsquad` commands.
-- **Teammate Reconnect Announcements:** Automatically detects and broadcasts when a team member logs online after being offline for hours (e.g. `🟢 Team member MooMan is now online after being offline for 4.5 hours.`). Includes configurable hour threshold, spam debounce against rapid reconnects, and multi-channel dispatch across In-Game Team Chat, Facepunch Clan Chat, Matrix E2EE, and WebUI event log.
+- **Teammate Reconnect Announcements:** Automatically detects and broadcasts when a team member logs online after being offline for hours (e.g. `Team member MooMan is now online after being offline for 4.5 hours.`). Includes configurable hour threshold, spam debounce against rapid reconnects, and multi-channel dispatch across In-Game Team Chat, Facepunch Clan Chat, Matrix E2EE, and WebUI event log.
+- **Emoji-Free In-Game Chat:** All bot messages sent to Rust's in-game Team Chat and Clan Chat are automatically stripped of emoji/Unicode pictographs at the transport layer (`sendTeamChat` / `sendClanMessage`) — ensuring full compatibility with Rust's in-game font renderer. Matrix and WebUI messages retain full emoji formatting.
 - **Searchable Alumni Roster:** Tracks every player who joined the team during the wipe with last-seen timestamps and one-click team leader promotion.
 
 ### 6. 🏰 Facepunch Clan System & In-Game MOTD Bridge
@@ -288,7 +289,7 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 | Command | Description | Example Output |
 | :--- | :--- | :--- |
 | `!info` / `!server` | Server name, map size, seed, player pop, wipe date | `ℹ️ [Server Info] Rustoria Main \| 4500m \| Seed: 1234 \| Wiped 1d 4h ago` |
-| `!pop` / `!players` | Current player population and queue | `👥 [Pop] 385/400 Online \| Queue: 12` |
+| `!pop` / `!players` | Current player population, queue, and hourly delta | `[Pop] 385/400 Online \| Queue: 12 \| +10 from last hour` |
 | `!time` / `!day` / `!night` | In-game clock, dawn/dusk times, and active phase | `☀️ [Time] 14:15 \| Sunrise: 07:31 \| Sunset: 20:05 (Day • Night in ~12m)` |
 | `!daynight` / `!cycle` | Exact minutes remaining until next dawn or dusk | `🌓 [Celestial Status] 4.8 mins until sunset (Night). Prepare NVGs!` |
 | `!cams [monument]` | Look up official CCTV camera identifiers for monuments | `📹 [LARGE OIL RIG] OILRIG1 (Helipad), OILRIG2 (Crane), OILRIG3 (Exhaust)...` |
