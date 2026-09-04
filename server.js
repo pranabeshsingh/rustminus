@@ -269,6 +269,13 @@ app.get("/api/settings", (req, res) => {
       day5m: true,
       day2m: true
     },
+    teamAlerts: cfg.teamAlerts || {
+      enabled: true,
+      minOfflineHours: 1.0,
+      inGameTeamChat: true,
+      clanChat: true,
+      matrixAlerts: true
+    },
     externalApis: {
       steamApiKeyMasked: maskKey(externalApis.steamApiKey),
       hasSteamApiKey: !!externalApis.steamApiKey,
@@ -287,7 +294,7 @@ app.get("/api/time/status", (req, res) => {
 });
 
 app.post("/api/settings", (req, res) => {
-  const { ai, externalApis, dayNightAlerts } = req.body;
+  const { ai, externalApis, dayNightAlerts, teamAlerts } = req.body;
   const cfg = readConfig();
 
   if (!cfg.ai) {
@@ -316,6 +323,15 @@ app.post("/api/settings", (req, res) => {
       day2m: true
     };
   }
+  if (!cfg.teamAlerts) {
+    cfg.teamAlerts = {
+      enabled: true,
+      minOfflineHours: 1.0,
+      inGameTeamChat: true,
+      clanChat: true,
+      matrixAlerts: true
+    };
+  }
 
   if (ai && typeof ai === "object") {
     if (typeof ai.enabled === "boolean") cfg.ai.enabled = ai.enabled;
@@ -336,6 +352,16 @@ app.post("/api/settings", (req, res) => {
     if (typeof dayNightAlerts.day2m === "boolean") cfg.dayNightAlerts.day2m = dayNightAlerts.day2m;
   }
 
+  if (teamAlerts && typeof teamAlerts === "object") {
+    if (typeof teamAlerts.enabled === "boolean") cfg.teamAlerts.enabled = teamAlerts.enabled;
+    if (typeof teamAlerts.minOfflineHours === "number" && teamAlerts.minOfflineHours >= 0) {
+      cfg.teamAlerts.minOfflineHours = Math.round(teamAlerts.minOfflineHours * 10) / 10;
+    }
+    if (typeof teamAlerts.inGameTeamChat === "boolean") cfg.teamAlerts.inGameTeamChat = teamAlerts.inGameTeamChat;
+    if (typeof teamAlerts.clanChat === "boolean") cfg.teamAlerts.clanChat = teamAlerts.clanChat;
+    if (typeof teamAlerts.matrixAlerts === "boolean") cfg.teamAlerts.matrixAlerts = teamAlerts.matrixAlerts;
+  }
+
   if (externalApis && typeof externalApis === "object") {
     if (externalApis.steamApiKey && typeof externalApis.steamApiKey === "string" && !externalApis.steamApiKey.includes("...")) {
       cfg.externalApis.steamApiKey = externalApis.steamApiKey.trim();
@@ -349,8 +375,19 @@ app.post("/api/settings", (req, res) => {
   }
 
   saveConfig(cfg);
-  rustManager.logEvent("settings", "Settings Updated", "AI Assistant, Day/Night Alerts, and External Integration settings updated.");
+  rustManager.logEvent("settings", "Settings Updated", "AI Assistant, Day/Night Alerts, and Team Alert settings updated.");
   res.json({ success: true, message: "Settings saved successfully." });
+});
+
+app.post("/api/team/test-reconnect-alert", async (req, res) => {
+  if (!rustManager.teamTracker) {
+    return res.status(500).json({ success: false, error: "Team tracker unavailable" });
+  }
+  const hours = parseFloat(req.body.hours) || 4.5;
+  const name = req.body.name || "TestTeammate";
+  const steamId = req.body.steamId || "76561198000000001";
+  const result = await rustManager.teamTracker.triggerReconnectAlert(name, steamId, hours, Date.now() - (hours * 3600 * 1000));
+  res.json({ success: true, ...result });
 });
 
 // ==========================================

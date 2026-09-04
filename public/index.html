@@ -1867,6 +1867,77 @@
               <p class="text-[10px] text-gray-500 italic">Command shortcut: Use <code class="text-amber-400">!daynight</code>, <code class="text-amber-400">!day</code>, or <code class="text-amber-400">!night</code> in team chat or Matrix to check live celestial status.</p>
             </div>
           </div>
+
+          <!-- Team Member Reconnect Alerts Card -->
+          <div class="lg:col-span-2 bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-user-check text-emerald-400"></i> Team Member Reconnect Alerts
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Automatic announcements when a teammate logs online after being offline for hours.</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button type="button" onclick="sendTestReconnectAlert()" class="bg-[#1a2333] hover:bg-[#232f45] text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-vial"></i> Test Alert
+                </button>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="setting-teamalert-enabled" checked onchange="handleTeamAlertToggle(this.checked)" class="sr-only peer">
+                  <div class="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  <span id="setting-teamalert-status-text" class="ml-2 text-xs font-mono font-bold text-emerald-400">Active</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="space-y-4 font-mono text-xs">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block uppercase text-gray-400 mb-1">Minimum Offline Hours Threshold</label>
+                  <div class="flex items-center gap-2">
+                    <input type="number" id="setting-teamalert-minhours" step="0.5" min="0.1" max="168" value="1.0"
+                      class="w-32 bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500">
+                    <span class="text-gray-400 text-xs font-mono">hours (e.g. 1.0 = alerts if offline &ge; 1 hr)</span>
+                  </div>
+                  <p class="text-[10px] text-gray-500 mt-1">Prevents spam from brief disconnects/crashes. Only alerts after being away for this duration.</p>
+                </div>
+
+                <div>
+                  <label class="block uppercase text-gray-400 mb-1">Alert Preview Example</label>
+                  <div class="bg-[#0b0e14] border border-[#1e2638] rounded-lg p-2.5 text-gray-300 text-xs font-mono">
+                    <span class="text-emerald-400 font-bold">🟢 Team member MooMan is now online after being offline for 4.5 hours.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block uppercase text-gray-400 mb-2">Broadcast Destinations</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-emerald-500/50">
+                    <input type="checkbox" id="setting-teamalert-teamchat" checked class="text-emerald-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-gray-200">In-Game Team Chat</div>
+                      <div class="text-[10px] text-gray-500">Directly in Rust squad chat</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-emerald-500/50">
+                    <input type="checkbox" id="setting-teamalert-clanchat" checked class="text-emerald-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-gray-200">Facepunch Clan Chat</div>
+                      <div class="text-[10px] text-gray-500">Broadcasts to all 80 clanmates</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-emerald-500/50">
+                    <input type="checkbox" id="setting-teamalert-matrix" checked class="text-emerald-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-gray-200">Matrix Team &amp; Alerts</div>
+                      <div class="text-[10px] text-gray-500">E2EE team room &amp; alert feed</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <p class="text-[10px] text-gray-500 italic">Command shortcut: Use <code class="text-emerald-400">!teamalert [hours|on|off|test]</code> in game chat or Matrix.</p>
+            </div>
+          </div>
         </div>
 
         <!-- Steam Profile & Enemy Intelligence Hub -->
