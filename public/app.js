@@ -2776,6 +2776,31 @@ async function loadSettings() {
       const chkMatrix = document.getElementById("setting-daynight-matrix");
       if (chkMatrix) chkMatrix.checked = dn.matrixAlerts !== false;
     }
+
+    if (data.teamAlerts) {
+      const ta = data.teamAlerts;
+      const toggle = document.getElementById("setting-teamalert-enabled");
+      const statusText = document.getElementById("setting-teamalert-status-text");
+      if (toggle) {
+        toggle.checked = ta.enabled !== false;
+        if (statusText) {
+          statusText.textContent = ta.enabled !== false ? "Active" : "Disabled";
+          statusText.className = ta.enabled !== false
+            ? "ml-2 text-xs font-mono font-bold text-emerald-400"
+            : "ml-2 text-xs font-mono font-bold text-gray-400";
+        }
+      }
+      const numHours = document.getElementById("setting-teamalert-minhours");
+      if (numHours && ta.minOfflineHours !== undefined) {
+        numHours.value = ta.minOfflineHours;
+      }
+      const chkTeam = document.getElementById("setting-teamalert-teamchat");
+      if (chkTeam) chkTeam.checked = ta.inGameTeamChat !== false;
+      const chkClan = document.getElementById("setting-teamalert-clanchat");
+      if (chkClan) chkClan.checked = ta.clanChat !== false;
+      const chkMatrix = document.getElementById("setting-teamalert-matrix");
+      if (chkMatrix) chkMatrix.checked = ta.matrixAlerts !== false;
+    }
   } catch (err) {
     console.error("[Settings] Error loading:", err.message);
   }
@@ -2799,6 +2824,12 @@ async function saveSettingsForm() {
   const dnTeam = document.getElementById("setting-daynight-teamchat")?.checked !== false;
   const dnMatrix = document.getElementById("setting-daynight-matrix")?.checked !== false;
 
+  const taEnabled = document.getElementById("setting-teamalert-enabled")?.checked !== false;
+  const taMinHours = parseFloat(document.getElementById("setting-teamalert-minhours")?.value) || 1.0;
+  const taTeam = document.getElementById("setting-teamalert-teamchat")?.checked !== false;
+  const taClan = document.getElementById("setting-teamalert-clanchat")?.checked !== false;
+  const taMatrix = document.getElementById("setting-teamalert-matrix")?.checked !== false;
+
   const steamKey = document.getElementById("setting-steam-apikey")?.value.trim() || undefined;
   const bmToken = document.getElementById("setting-bm-token")?.value.trim() || undefined;
   const bmServerId = document.getElementById("setting-bm-serverid")?.value.trim() || "";
@@ -2819,6 +2850,13 @@ async function saveSettingsForm() {
       inGameTeamChat: dnTeam,
       matrixAlerts: dnMatrix
     },
+    teamAlerts: {
+      enabled: taEnabled,
+      minOfflineHours: taMinHours,
+      inGameTeamChat: taTeam,
+      clanChat: taClan,
+      matrixAlerts: taMatrix
+    },
     externalApis: {
       steamApiKey: steamKey,
       battleMetricsToken: bmToken,
@@ -2838,14 +2876,15 @@ async function saveSettingsForm() {
     showToast("Settings updated successfully!", "success");
 
     // Clear password inputs
-    const keyInput = document.getElementById("setting-ai-apikey");
-    if (keyInput) keyInput.value = "";
-    const steamInput = document.getElementById("setting-steam-apikey");
-    if (steamInput) steamInput.value = "";
-    const bmInput = document.getElementById("setting-bm-token");
-    if (bmInput) bmInput.value = "";
+    const aiKeyInput = document.getElementById("setting-ai-apikey");
+    if (aiKeyInput) aiKeyInput.value = "";
+    const steamKeyInput = document.getElementById("setting-steam-apikey");
+    if (steamKeyInput) steamKeyInput.value = "";
+    const bmTokenInput = document.getElementById("setting-bm-token");
+    if (bmTokenInput) bmTokenInput.value = "";
 
-    await loadSettings();
+    // Reload settings state
+    await loadSettingsForm();
   } catch (err) {
     showToast(err.message, "error");
   } finally {
@@ -2860,6 +2899,32 @@ function handleDayNightToggle(checked) {
     statusText.className = checked
       ? "ml-2 text-xs font-mono font-bold text-amber-400"
       : "ml-2 text-xs font-mono font-bold text-gray-400";
+  }
+}
+
+function handleTeamAlertToggle(checked) {
+  const statusText = document.getElementById("setting-teamalert-status-text");
+  if (statusText) {
+    statusText.textContent = checked ? "Active" : "Disabled";
+    statusText.className = checked
+      ? "ml-2 text-xs font-mono font-bold text-emerald-400"
+      : "ml-2 text-xs font-mono font-bold text-gray-400";
+  }
+}
+
+async function sendTestReconnectAlert() {
+  try {
+    const hours = parseFloat(document.getElementById("setting-teamalert-minhours")?.value) || 4.5;
+    const res = await fetch("/api/team/test-reconnect-alert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hours, name: "TestTeammate" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to dispatch test alert");
+    showToast(`Dispatched test reconnect alert: "${data.message || "Alert sent"}"`, "success");
+  } catch (e) {
+    showToast(e.message, "error");
   }
 }
 
@@ -4386,4 +4451,6 @@ window.promptAssignSquad = promptAssignSquad;
 window.addRaidTargetPreset = addRaidTargetPreset;
 window.clearRaidTargetInput = clearRaidTargetInput;
 window.runRaidCalculator = runRaidCalculator;
+window.handleTeamAlertToggle = handleTeamAlertToggle;
+window.sendTestReconnectAlert = sendTestReconnectAlert;
 window.redrawMap = redrawMap;

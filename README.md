@@ -60,6 +60,7 @@
   - ✈️ **Pilots** (Scrappy / Mini-Copter Transports)
   - ⚪ **Unassigned** (Incoming Recruits / Alumni)
 - **Persistent Squad Storage:** Squad designations persist across wipes in `data/clan_squads.json`, with quick filtering tabs in the WebUI and in-game `!setsquad` commands.
+- **Teammate Reconnect Announcements:** Automatically detects and broadcasts when a team member logs online after being offline for hours (e.g. `🟢 Team member MooMan is now online after being offline for 4.5 hours.`). Includes configurable hour threshold, spam debounce against rapid reconnects, and multi-channel dispatch across In-Game Team Chat, Facepunch Clan Chat, Matrix E2EE, and WebUI event log.
 - **Searchable Alumni Roster:** Tracks every player who joined the team during the wipe with last-seen timestamps and one-click team leader promotion.
 
 ### 6. 🏰 Facepunch Clan System & In-Game MOTD Bridge
@@ -305,6 +306,7 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 | `!locate <name>` | Locate teammate's exact grid and distance | `📍 Player1 is in grid [N13] (342m away)` |
 | `!death [name]` | Teammate's last death location and time | `💀 Player1 died in [G14] 4m ago` |
 | `!afk` | Lists squad members currently inactive or sleeping | `💤 [AFK] Player2 (Sleeping for 28m) \| Player3 (Stationary 12m)` |
+| `!teamalert [h\|on\|off\|test]` | View/set threshold for member reconnect alert | `👥 [Team Reconnect Alert] Min offline threshold set to 2 hour(s).` |
 | `!promote <name>` | Promotes a teammate to in-game Team Leader | `👑 Promoted Player1 to Team Leader!` |
 | `!kick <name>` | Removes a player from the current in-game team | `🚪 Kicked Player4 from the team.` |
 
