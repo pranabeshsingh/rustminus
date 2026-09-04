@@ -130,6 +130,7 @@ rustManager.on("clanInfo", (data) => broadcast("clan_info", data));
 rustManager.on("clanMessage", (data) => broadcast("clan_message", data));
 rustManager.on("mapMarkerSpawn", (data) => broadcast("map_event", data));
 rustManager.on("event", (data) => broadcast("event_log", data));
+rustManager.on("lockdown", (data) => broadcast("base_lockdown", data));
 
 fcmService.on("status", (data) => broadcast("fcm_status", data));
 fcmService.on("pairingLog", (data) => broadcast("pairing_log", data));
@@ -511,6 +512,43 @@ app.post("/api/clan/motd", async (req, res) => {
 app.get("/api/clan/armory", (req, res) => {
   const armory = rustManager.storageTracker.getClanArmoryTotals();
   res.json({ success: true, ...armory });
+});
+
+app.post("/api/clan/raid-calculator", (req, res) => {
+  const { target } = req.body;
+  if (!target) return res.status(400).json({ error: "target string required" });
+  const armoryTotals = rustManager.storageTracker ? rustManager.storageTracker.getClanArmoryTotals() : null;
+  const result = GameDatabase.calculateRaidCost(target, armoryTotals);
+  res.json(result);
+});
+
+app.get("/api/clan/squads", (req, res) => {
+  const squads = rustManager.teamTracker ? rustManager.teamTracker.getSquads() : {};
+  res.json({ success: true, squads });
+});
+
+app.post("/api/clan/squads/assign", (req, res) => {
+  const { steamId, squad } = req.body;
+  if (!steamId) return res.status(400).json({ error: "steamId required" });
+  if (!rustManager.teamTracker) return res.status(500).json({ error: "teamTracker unavailable" });
+  const result = rustManager.teamTracker.assignSquad(steamId, squad);
+  res.json(result);
+});
+
+app.post("/api/base/lockdown", async (req, res) => {
+  const { action, reason } = req.body;
+  if (!rustManager.deviceAutomation) return res.status(500).json({ error: "deviceAutomation unavailable" });
+  if (action === "off" || action === "cancel") {
+    const msg = await rustManager.deviceAutomation.cancelLockdown();
+    return res.json({ success: true, active: false, message: msg });
+  }
+  const result = await rustManager.deviceAutomation.triggerLockdown(reason || "WebUI Emergency Lockdown", null, "webui");
+  res.json(result);
+});
+
+app.get("/api/base/lockdown/status", (req, res) => {
+  if (!rustManager.deviceAutomation) return res.json({ active: false });
+  res.json({ success: true, ...rustManager.deviceAutomation.getLockdownStatus() });
 });
 
 // 4. Tactical Calculators APIs

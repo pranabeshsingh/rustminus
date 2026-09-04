@@ -17,7 +17,8 @@
 - **Real-Time Map Rendering:** Streams high-resolution in-game JPEG imagery directly from Facepunch servers.
 - **Dynamic Pan & Zoom:** Interactive HTML5 Canvas with smooth wheel zoom, click-and-drag panning, and one-click centering.
 - **26×26 Tactical Grid:** Accurate sector grid overlay (A0 through Z25) matching in-game Rust coordinates.
-- **Monument Pins:** Visual markers for all major monuments (Launch Site, Airfield, Oil Rigs, Military Tunnels, The Dome, etc.).
+- **Monument Pins & CCTV Directory:** Visual markers for all major monuments with built-in CCTV camera identifiers (`OILRIG1-6`, `DOME1-3`, `LAUNCHSITE1-4`, `AIRFIELD1-4`, etc.).
+- **Squad Death Markers & Map Pings:** Renders squad death markers (`💀`) with player name and time-ago indicator, plus team map notes and pings (`📍`).
 - **Live Sector Coordinate Tracking:** Real-time meter coordinate readout `(X, Y)` and sector calculation on cursor hover.
 
 ### 2. ℹ️ Rust Server Telemetry (`getInfo`)
@@ -48,11 +49,18 @@
   - Filters for **In-Stock Only** and **Blueprints Only**.
   - Detailed pricing, required currency, available stock, and blueprint badges.
 
-### 5. 👥 Team & Clan Alumni Telemetry (65–80 Player Roster)
+### 5. 👥 Team & 80-Man Clan Squad Organization
 - **Active Team Roster:** Real-time display of current in-game squad members with Steam avatars, profile links, and 👑 Leader indicators.
 - **Status & Coordinates:** `🟢 Online & Alive`, `💤 Sleeping`, and `💀 Dead` status with live grid sectors (e.g. `N13`) and `(X, Y)` coordinates.
-- **Clan Alumni History:** Purpose-built for large 65–80+ player clans and zergs that rotate through the 8/16-man in-game team cap. Automatically logs every player who has joined the team during the wipe, tracking Steam IDs, ranks, current team status, and last-seen timestamps.
-- **Searchable Roster:** Web dashboard features instant member search, filtering by active vs. alumni status, and one-click leader promotion.
+- **Squad Tagging & Role Assignment:** Purpose-built for 65–80+ player clans and zergs that rotate through the 8/16-man in-game team cap. Organizes players into functional squads:
+  - 🔴 **Alpha** (Primary PvP / Raid Roam)
+  - 🔵 **Bravo** (Secondary Roam / Monument Control)
+  - 🟢 **Farm** (Resource Harvesting / Node Runners)
+  - 🛡️ **Defense** (Compound Defenders / Anti-Air)
+  - ✈️ **Pilots** (Scrappy / Mini-Copter Transports)
+  - ⚪ **Unassigned** (Incoming Recruits / Alumni)
+- **Persistent Squad Storage:** Squad designations persist across wipes in `data/clan_squads.json`, with quick filtering tabs in the WebUI and in-game `!setsquad` commands.
+- **Searchable Alumni Roster:** Tracks every player who joined the team during the wipe with last-seen timestamps and one-click team leader promotion.
 
 ### 6. 🏰 Facepunch Clan System & In-Game MOTD Bridge
 - **Official Facepunch Clan API:** Deep integration with Rust's native Clan protocol (`fetchClanInfo`, `fetchClanChat`, `sendClanMessage`, `setClanMotd`).
@@ -60,7 +68,7 @@
 - **Live Clan MOTD Dispatch:** Edit and broadcast clan Message of the Day banners directly from the dashboard or in-game using `!motd <message>`.
 - **Clan Leaderboard & Role Telemetry:** Real-time visibility into clan roles, leaders, offline/online counts, and clan member lists.
 
-### 7. 💣 Clan Armory & Total Raid Sulfur Aggregator
+### 7. 💣 Clan Armory & Interactive Raid Target Calculator
 - **Cross-Container Inventory Aggregation:** Aggregates explosive and armory reserves across all paired smart storage boxes, drop chests, and lockers.
 - **Boom Inventory:** Real-time counts of Rockets, Timed Explosive Charges (C4), Satchel Charges, and Explosive 5.56 Ammo.
 - **Total Raid Sulfur Potential:** Automatically computes total explosive power converted to raw sulfur equivalent:
@@ -69,14 +77,28 @@
   - 🎒 **1x Satchel:** 480 Sulfur
   - 💥 **1x Explosive 5.56 Ammo:** 25 Sulfur
   - 🟡 **Raw Sulfur & Gunpowder:** 1:1 and 1:2 conversion
-- **Squad In-Game Commands:** Check available boom and total sulfur on the fly with `!boom`, `!sulfur`, and `!armory`.
+- **Interactive Raid Target Calculator:**
+  - Calculates exact explosive requirements for any structure breakdown (e.g. `3 garage doors and 1 stone wall`, `2x2 starter`, `4 armored doors`).
+  - Cross-references against live armory boom inventory to give instant readiness: **✅ READY FOR ROCKET RAID**, **✅ READY FOR C4 RAID**, or **❌ SHORT (Need X more rockets)**.
+  - Interactive preset buttons in WebUI and in-game commands: `!raidcost <target>` and `!canweraid <target>`.
 
 ### 8. 🛡️ Multi-TC Compound Upkeep Grid
 - **Decay Tracking for Complex Compounds:** Monitors Main Base Tool Cupboard (TC) plus all External, Flank, and Gatehouse TCs.
 - **Upkeep Countdown:** Displays remaining protected upkeep hours, decay warnings, and exact resource consumption (Wood, Stone, Metal, HQM).
 - **Fast Status Query:** Teammates can check whole-compound upkeep status instantly with `!multitc` or `!tcs`.
 
-### 9. 🤖 AI Tactical Assistant with Live Server Context
+### 9. 🚨 Automated Compound Defense Lockdown & Web Siren
+- **Emergency Panic Lockdown:** Instant compound lockdown triggered via WebUI button, in-game command `!lockdown on`, or automated Smart Alarm breach.
+- **Automated Batch Defense:**
+  - ⚡ Sets all compound Auto-Turrets to **ON**
+  - 🚀 Sets all SAM Air Defense Sites to **ON**
+  - 🚪 Closes all paired compound Smart Doors and Gates
+  - 🚨 Activates emergency strobe and siren lights
+  - 📢 Broadcasts emergency lockdown alert to in-game Team Chat and Clan Chat
+- **Web Audio API Raid Siren:** Browser-synthesized emergency raid siren (sawtooth sweep from 650Hz to 1150Hz) plays directly in the dashboard during raids and lockdowns, complete with header mute toggle.
+- **Stand Down / Cancel:** Deactivate lockdown at any time via WebUI banner or `!unlockdown`.
+
+### 10. 🤖 AI Tactical Assistant with Live Server Context
 - **Multi-Provider LLM Engine:** Native support for **Groq** (ultra-fast Llama-3.3-70b / Llama-3.1-8b), **Mistral AI**, **OpenAI**, and **Google Gemini**.
 - **Live Context Injection:** Automatically injects real-time server and compound state into every AI prompt:
   - Current in-game time and minutes until dawn/dusk
@@ -84,15 +106,17 @@
   - Active team member positions, status, and dead squad mates
   - Total explosive stockpile and raw sulfur raiding power
   - Multi-TC upkeep hours remaining
+  - Compound defense lockdown status
+  - Monument CCTV camera codes directory (Large/Small Oil Rig, Dome, Airfield, Launch Site, etc.)
   - Active world events (Cargo, Heli, Chinook, Crates)
-- **In-Game Querying:** Ask tactical questions directly from team chat: `!ai how many rockets do we have?`, `!ai who is dead right now?`, `!ai can we raid a 2x2 with 4 stone walls?`.
+- **In-Game Querying:** Ask tactical questions directly from team chat: `!ai how many rockets do we have?`, `!ai what cameras are on Large Oil Rig?`, `!ai can we raid a 2x2 with 4 stone walls?`.
 
-### 10. ⚡ Master Base Automation
+### 11. ⚡ Master Base Automation
 - **Batch Base Controls:** One-click toggles for all compound Auto-Turrets, SAM air defense sites, compound lights, and smart doors.
 - **Emergency Strobe:** Rapidly strobes paired switches for disco or warning beacon effects.
 - **Smart Alarms:** Listens for in-game sensor triggers and dispatches instant push, Matrix, and voice alerts.
 
-### 11. 🔐 Matrix E2EE Integration & Ephemeral Voice Bot
+### 12. 🔐 Matrix E2EE Integration & Ephemeral Voice Bot
 - **Matrix Rooms:** Dedicated channels for **Alerts**, **In-Game Team Chat Relay**, and **Raid Alarms**.
 - **In-Game Commands:** Full remote base control from in-game team chat or Matrix.
 - **Ephemeral Voice Announcer:** High-speed (150%) text-to-speech WebRTC audio injection into Matrix voice rooms with connect-speak-disconnect lifecycle (zero idle ghost bots).
@@ -266,6 +290,7 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 | `!pop` / `!players` | Current player population and queue | `👥 [Pop] 385/400 Online \| Queue: 12` |
 | `!time` / `!day` / `!night` | In-game clock, dawn/dusk times, and active phase | `☀️ [Time] 14:15 \| Sunrise: 07:31 \| Sunset: 20:05 (Day • Night in ~12m)` |
 | `!daynight` / `!cycle` | Exact minutes remaining until next dawn or dusk | `🌓 [Celestial Status] 4.8 mins until sunset (Night). Prepare NVGs!` |
+| `!cams [monument]` | Look up official CCTV camera identifiers for monuments | `📹 [LARGE OIL RIG] OILRIG1 (Helipad), OILRIG2 (Crane), OILRIG3 (Exhaust)...` |
 | `!events` / `!map` | Active world events (Cargo, Heli, Chinook, Crates) | `🗺️ [Active Events] Cargo Ship @ G14 \| Patrol Helicopter @ N11` |
 | `!vending <item>` | Search island vending machines for item and price | `🛒 [Matches for "rocket"] "Raid Shop" @ M14: 1x Rocket for 500 Scrap` |
 
@@ -274,6 +299,8 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 | :--- | :--- | :--- |
 | `!clan` / `!roster` | Clan tag, active MOTD, member count, and leaders | `🏰 [Clan: CHUPAPI] Tag: [CHUP] \| Members: 24/80 (8 Online) \| MOTD: Raid at 8PM` |
 | `!motd <message>` | View or update and broadcast the in-game Clan MOTD | `📢 [Clan MOTD Updated] "Roam squad meet at Launch Site!"` |
+| `!squads` / `!squad [name]` | View active squads breakdown or inspect specific squad roster | `🏰 [Clan Squad Directory] • [Alpha] 6 members • [Farm] 12 members...` |
+| `!setsquad <player> <squad>` | Assign a clan member to a squad (Alpha, Bravo, Farm, Defense, Pilots) | `🏰 Assigned Player1 to [Squad Alpha].` |
 | `!team` | Active in-game squad health, status, and grid sector | `🛡️ [Team] Player1 🟢 Alive [N13] \| Player2 💤 Sleeping [M12]` |
 | `!locate <name>` | Locate teammate's exact grid and distance | `📍 Player1 is in grid [N13] (342m away)` |
 | `!death [name]` | Teammate's last death location and time | `💀 Player1 died in [G14] 4m ago` |
@@ -284,6 +311,8 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 ### Compound Boom, Armory & Multi-TC
 | Command | Description | Example Output |
 | :--- | :--- | :--- |
+| `!raidcost <target>` | Calculate explosives & sulfur needed for target base | `🎯 [Raid Cost: 3x GARAGE DOOR] Rockets: 9x \| C4: 6x \| Sulfur: 12.6k` |
+| `!canweraid <target>` | Compare target raid cost against live Clan Armory stockpile | `🏰 [Armory Readiness] ✅ READY FOR ROCKET RAID! (Have 18/9 Rockets)` |
 | `!boom` | Aggregated explosive count across all compound boxes | `💣 [Boom Armory] 18x Rockets \| 6x C4 \| 14x Satchels \| 650x Explo 5.56` |
 | `!sulfur` / `!gp` | Total raid sulfur potential calculation across compound | `🟡 [Raid Sulfur Power] Total Potential: 52,400 Sulfur (32 Rockets + 4 C4 + Raw)` |
 | `!armory` | Overview of armory containers, weapons, ammo, & sulfur | `📦 [Armory Summary] 4 Containers \| 22 Guns \| 1.4k 5.56 Ammo \| 52.4k Sulfur Eq.` |
@@ -295,6 +324,8 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 ### Compound Switches & Base Automation
 | Command | Description | Example Output |
 | :--- | :--- | :--- |
+| `!lockdown on` / `off` | Trigger or stand down emergency compound lockdown defense | `🚨 [COMPOUND LOCKDOWN] Turrets: ON \| SAMs: ON \| Doors: CLOSED` |
+| `!unlockdown` | Alias to stand down base defense lockdown | `🟢 [LOCKDOWN CANCELLED] Stand down. Base defense alert resolved.` |
 | `!turrets on` / `off` | Batch toggles all compound auto-turrets | `⚡ Set 6/6 Turrets to ON.` |
 | `!sams on` / `off` | Batch toggles roof SAM air defense sites | `⚡ Set 3/3 SAMs to ON.` |
 | `!lights on` / `off` | Batch toggles base and compound lighting grid | `⚡ Set 12/12 Lights to ON.` |
