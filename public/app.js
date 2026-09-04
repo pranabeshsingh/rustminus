@@ -2219,9 +2219,12 @@ async function loadSettings() {
         }
       }
 
+      const radioGroq = document.getElementById("setting-ai-provider-groq");
       const radioGemini = document.getElementById("setting-ai-provider-gemini");
       const radioOpenai = document.getElementById("setting-ai-provider-openai");
-      if (data.ai.provider === "openai") {
+      if (data.ai.provider === "groq") {
+        if (radioGroq) radioGroq.checked = true;
+      } else if (data.ai.provider === "openai") {
         if (radioOpenai) radioOpenai.checked = true;
       } else {
         if (radioGemini) radioGemini.checked = true;
@@ -2321,17 +2324,26 @@ async function saveSettingsForm() {
 function handleAiProviderChange() {
   const provider = document.querySelector('input[name="ai-provider"]:checked')?.value;
   const modelInput = document.getElementById("setting-ai-model");
+  const keyInput = document.getElementById("setting-ai-apikey");
   if (modelInput) {
-    if (provider === "openai") {
+    if (provider === "groq") {
+      modelInput.placeholder = "llama-3.3-70b-versatile";
+      if (!modelInput.value || !modelInput.value.includes("llama") && !modelInput.value.includes("mixtral")) {
+        modelInput.value = "llama-3.3-70b-versatile";
+      }
+      if (keyInput) keyInput.placeholder = "Enter Groq API Key (gsk_...)...";
+    } else if (provider === "openai") {
       modelInput.placeholder = "gpt-4o-mini";
-      if (!modelInput.value || modelInput.value.includes("gemini")) {
+      if (!modelInput.value || modelInput.value.includes("gemini") || modelInput.value.includes("llama")) {
         modelInput.value = "gpt-4o-mini";
       }
+      if (keyInput) keyInput.placeholder = "Enter OpenAI API Key (sk-...)...";
     } else {
       modelInput.placeholder = "gemini-1.5-flash";
-      if (!modelInput.value || modelInput.value.includes("gpt-")) {
+      if (!modelInput.value || modelInput.value.includes("gpt-") || modelInput.value.includes("llama")) {
         modelInput.value = "gemini-1.5-flash";
       }
+      if (keyInput) keyInput.placeholder = "Enter Gemini API Key (AIzaSy...)...";
     }
   }
 }
@@ -2341,13 +2353,17 @@ function selectModelPreset(val) {
   const modelInput = document.getElementById("setting-ai-model");
   if (modelInput) modelInput.value = val;
 
-  if (val.startsWith("gpt-")) {
+  if (val.startsWith("llama-") || val.startsWith("mixtral-")) {
+    const radio = document.getElementById("setting-ai-provider-groq");
+    if (radio) radio.checked = true;
+  } else if (val.startsWith("gpt-")) {
     const radio = document.getElementById("setting-ai-provider-openai");
     if (radio) radio.checked = true;
   } else if (val.startsWith("gemini-")) {
     const radio = document.getElementById("setting-ai-provider-gemini");
     if (radio) radio.checked = true;
   }
+  handleAiProviderChange();
 }
 
 function togglePasswordVisibility(inputId) {

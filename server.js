@@ -253,7 +253,7 @@ app.get("/api/settings", (req, res) => {
       provider: ai.provider || "gemini",
       apiKeyMasked: maskKey(ai.apiKey),
       hasApiKey: !!ai.apiKey,
-      model: ai.model || (ai.provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"),
+      model: ai.model || (ai.provider === "groq" ? "llama-3.3-70b-versatile" : ai.provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"),
       customPrompt: ai.customPrompt || ""
     },
     externalApis: {
@@ -289,7 +289,7 @@ app.post("/api/settings", (req, res) => {
 
   if (ai && typeof ai === "object") {
     if (typeof ai.enabled === "boolean") cfg.ai.enabled = ai.enabled;
-    if (ai.provider && (ai.provider === "gemini" || ai.provider === "openai")) cfg.ai.provider = ai.provider;
+    if (ai.provider && (ai.provider === "groq" || ai.provider === "gemini" || ai.provider === "openai")) cfg.ai.provider = ai.provider;
     if (ai.model && typeof ai.model === "string") cfg.ai.model = ai.model.trim();
     if (ai.customPrompt !== undefined) cfg.ai.customPrompt = String(ai.customPrompt).trim();
     if (ai.apiKey && typeof ai.apiKey === "string" && !ai.apiKey.includes("...")) {
