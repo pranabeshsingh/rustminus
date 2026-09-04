@@ -30,5 +30,11 @@
   "webui": {
     "domain": "rust.example.com",
     "port": 3000
+  },
+  "ai": {
+    "enabled": true,
+    "provider": "groq",
+    "apiKey": "YOUR_GROQ_OR_OPENAI_OR_GEMINI_API_KEY",
+    "model": "qwen/qwen3.8-27b"
   }
 }
