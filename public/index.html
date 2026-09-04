@@ -1437,9 +1437,16 @@
             <div class="space-y-4 font-mono text-xs">
               <div>
                 <label class="block uppercase text-gray-400 mb-1">AI Provider</label>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-rust-500/50">
-                    <input type="radio" name="ai-provider" value="gemini" id="setting-ai-provider-gemini" checked onchange="handleAiProviderChange()" class="text-rust-500 focus:ring-0">
+                    <input type="radio" name="ai-provider" value="groq" id="setting-ai-provider-groq" checked onchange="handleAiProviderChange()" class="text-rust-500 focus:ring-0">
+                    <div>
+                      <div class="font-bold text-orange-400">Groq Cloud (Free)</div>
+                      <div class="text-[10px] text-gray-500">Llama 3.3 70B, ultra-fast</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-rust-500/50">
+                    <input type="radio" name="ai-provider" value="gemini" id="setting-ai-provider-gemini" onchange="handleAiProviderChange()" class="text-rust-500 focus:ring-0">
                     <div>
                       <div class="font-bold text-gray-200">Google Gemini</div>
                       <div class="text-[10px] text-gray-500">Free tier, high rate limits</div>
@@ -1458,13 +1465,15 @@
               <div>
                 <label class="block uppercase text-gray-400 mb-1">Model Name</label>
                 <div class="flex gap-2">
-                  <input type="text" id="setting-ai-model" placeholder="gemini-1.5-flash"
+                  <input type="text" id="setting-ai-model" placeholder="llama-3.3-70b-versatile"
                     class="flex-1 bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
                   <select id="setting-ai-model-preset" onchange="selectModelPreset(this.value)" class="bg-[#0b0e14] border border-[#1e2638] rounded-lg px-2 py-2 text-gray-300 focus:outline-none focus:border-rust-500">
                     <option value="">Presets...</option>
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fastest)</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep reasoning)</option>
-                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="llama-3.3-70b-versatile">Groq: Llama 3.3 70B (Recommended)</option>
+                    <option value="llama-3.1-8b-instant">Groq: Llama 3.1 8B (Instant 1000 t/s)</option>
+                    <option value="mixtral-8x7b-32768">Groq: Mixtral 8x7B</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                     <option value="gpt-4o-mini">GPT-4o Mini</option>
                     <option value="gpt-4o">GPT-4o</option>
                   </select>
