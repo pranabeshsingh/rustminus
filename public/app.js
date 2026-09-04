@@ -873,6 +873,11 @@ function renderTimeInfo() {
     const minsUntilSunrise = Math.round((nightHoursLeft / 24) * (t.dayLengthMinutes || 80));
     if (countDesc) countDesc.textContent = `Sunrise in ~${Math.max(1, minsUntilSunrise)} real mins`;
   }
+
+  const alertBadge = document.getElementById("time-alerts-badge");
+  if (alertBadge) {
+    alertBadge.innerHTML = `<i class="fa-solid fa-bell text-amber-400"></i> 5m / 2m Alerts Active`;
+  }
 }
 
 async function refreshTimeInfo(userInitiated = false) {
@@ -2259,6 +2264,31 @@ async function loadSettings() {
       const bmServer = document.getElementById("setting-bm-serverid");
       if (bmServer) bmServer.value = data.externalApis.battleMetricsServerId || "";
     }
+
+    if (data.dayNightAlerts) {
+      const dn = data.dayNightAlerts;
+      const toggle = document.getElementById("setting-daynight-enabled");
+      const statusText = document.getElementById("setting-daynight-status-text");
+      if (toggle) {
+        toggle.checked = dn.enabled !== false;
+        if (statusText) {
+          statusText.textContent = dn.enabled !== false ? "Active" : "Disabled";
+          statusText.className = dn.enabled !== false
+            ? "ml-2 text-xs font-mono font-bold text-amber-400"
+            : "ml-2 text-xs font-mono font-bold text-gray-400";
+        }
+      }
+      const chkNight5 = document.getElementById("setting-daynight-night5m");
+      if (chkNight5) chkNight5.checked = dn.night5m !== false;
+      const chkDay5 = document.getElementById("setting-daynight-day5m");
+      if (chkDay5) chkDay5.checked = dn.day5m !== false;
+      const chkDay2 = document.getElementById("setting-daynight-day2m");
+      if (chkDay2) chkDay2.checked = dn.day2m !== false;
+      const chkTeam = document.getElementById("setting-daynight-teamchat");
+      if (chkTeam) chkTeam.checked = dn.inGameTeamChat !== false;
+      const chkMatrix = document.getElementById("setting-daynight-matrix");
+      if (chkMatrix) chkMatrix.checked = dn.matrixAlerts !== false;
+    }
   } catch (err) {
     console.error("[Settings] Error loading:", err.message);
   }
@@ -2275,6 +2305,13 @@ async function saveSettingsForm() {
   const aiApiKey = document.getElementById("setting-ai-apikey")?.value.trim() || undefined;
   const aiPrompt = document.getElementById("setting-ai-prompt")?.value.trim() || "";
 
+  const dnEnabled = document.getElementById("setting-daynight-enabled")?.checked !== false;
+  const dnNight5 = document.getElementById("setting-daynight-night5m")?.checked !== false;
+  const dnDay5 = document.getElementById("setting-daynight-day5m")?.checked !== false;
+  const dnDay2 = document.getElementById("setting-daynight-day2m")?.checked !== false;
+  const dnTeam = document.getElementById("setting-daynight-teamchat")?.checked !== false;
+  const dnMatrix = document.getElementById("setting-daynight-matrix")?.checked !== false;
+
   const steamKey = document.getElementById("setting-steam-apikey")?.value.trim() || undefined;
   const bmToken = document.getElementById("setting-bm-token")?.value.trim() || undefined;
   const bmServerId = document.getElementById("setting-bm-serverid")?.value.trim() || "";
@@ -2286,6 +2323,14 @@ async function saveSettingsForm() {
       model: aiModel,
       apiKey: aiApiKey,
       customPrompt: aiPrompt
+    },
+    dayNightAlerts: {
+      enabled: dnEnabled,
+      night5m: dnNight5,
+      day5m: dnDay5,
+      day2m: dnDay2,
+      inGameTeamChat: dnTeam,
+      matrixAlerts: dnMatrix
     },
     externalApis: {
       steamApiKey: steamKey,
@@ -2318,6 +2363,16 @@ async function saveSettingsForm() {
     showToast(err.message, "error");
   } finally {
     if (btn) btn.innerHTML = origHtml;
+  }
+}
+
+function handleDayNightToggle(checked) {
+  const statusText = document.getElementById("setting-daynight-status-text");
+  if (statusText) {
+    statusText.textContent = checked ? "Active" : "Disabled";
+    statusText.className = checked
+      ? "ml-2 text-xs font-mono font-bold text-amber-400"
+      : "ml-2 text-xs font-mono font-bold text-gray-400";
   }
 }
 

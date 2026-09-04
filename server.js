@@ -256,6 +256,14 @@ app.get("/api/settings", (req, res) => {
       model: ai.model || (ai.provider === "groq" ? "qwen/qwen3.8-27b" : ai.provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"),
       customPrompt: ai.customPrompt || ""
     },
+    dayNightAlerts: cfg.dayNightAlerts || {
+      enabled: true,
+      inGameTeamChat: true,
+      matrixAlerts: true,
+      night5m: true,
+      day5m: true,
+      day2m: true
+    },
     externalApis: {
       steamApiKeyMasked: maskKey(externalApis.steamApiKey),
       hasSteamApiKey: !!externalApis.steamApiKey,
@@ -266,8 +274,15 @@ app.get("/api/settings", (req, res) => {
   });
 });
 
+app.get("/api/time/status", (req, res) => {
+  if (!rustManager.timeNotifier) {
+    return res.json({ success: false, error: "Time notifier not initialized" });
+  }
+  res.json({ success: true, ...rustManager.timeNotifier.getStatus() });
+});
+
 app.post("/api/settings", (req, res) => {
-  const { ai, externalApis } = req.body;
+  const { ai, externalApis, dayNightAlerts } = req.body;
   const cfg = readConfig();
 
   if (!cfg.ai) {
@@ -286,6 +301,16 @@ app.post("/api/settings", (req, res) => {
       battleMetricsServerId: ""
     };
   }
+  if (!cfg.dayNightAlerts) {
+    cfg.dayNightAlerts = {
+      enabled: true,
+      inGameTeamChat: true,
+      matrixAlerts: true,
+      night5m: true,
+      day5m: true,
+      day2m: true
+    };
+  }
 
   if (ai && typeof ai === "object") {
     if (typeof ai.enabled === "boolean") cfg.ai.enabled = ai.enabled;
@@ -295,6 +320,15 @@ app.post("/api/settings", (req, res) => {
     if (ai.apiKey && typeof ai.apiKey === "string" && !ai.apiKey.includes("...")) {
       cfg.ai.apiKey = ai.apiKey.trim();
     }
+  }
+
+  if (dayNightAlerts && typeof dayNightAlerts === "object") {
+    if (typeof dayNightAlerts.enabled === "boolean") cfg.dayNightAlerts.enabled = dayNightAlerts.enabled;
+    if (typeof dayNightAlerts.inGameTeamChat === "boolean") cfg.dayNightAlerts.inGameTeamChat = dayNightAlerts.inGameTeamChat;
+    if (typeof dayNightAlerts.matrixAlerts === "boolean") cfg.dayNightAlerts.matrixAlerts = dayNightAlerts.matrixAlerts;
+    if (typeof dayNightAlerts.night5m === "boolean") cfg.dayNightAlerts.night5m = dayNightAlerts.night5m;
+    if (typeof dayNightAlerts.day5m === "boolean") cfg.dayNightAlerts.day5m = dayNightAlerts.day5m;
+    if (typeof dayNightAlerts.day2m === "boolean") cfg.dayNightAlerts.day2m = dayNightAlerts.day2m;
   }
 
   if (externalApis && typeof externalApis === "object") {
@@ -310,7 +344,7 @@ app.post("/api/settings", (req, res) => {
   }
 
   saveConfig(cfg);
-  rustManager.logEvent("settings", "Settings Updated", "AI Assistant and External Integration settings updated.");
+  rustManager.logEvent("settings", "Settings Updated", "AI Assistant, Day/Night Alerts, and External Integration settings updated.");
   res.json({ success: true, message: "Settings saved successfully." });
 });
 

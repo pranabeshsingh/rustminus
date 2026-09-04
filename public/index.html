@@ -765,6 +765,7 @@
               </div>
               <div class="flex justify-between items-center text-[11px] font-mono text-gray-500 pt-1">
                 <span>Day Length: <b id="time-daylength-val" class="text-gray-300">-- mins</b></span>
+                <span id="time-alerts-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950/60 text-amber-300 border border-amber-800/60"><i class="fa-solid fa-bell"></i> 5m / 2m Alerts Active</span>
                 <span>Time Scale: <b id="time-timescale-val" class="text-gray-300">1.0x</b></span>
               </div>
             </div>
@@ -1549,6 +1550,73 @@
                   class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rust-500">
                 <p class="text-[10px] text-gray-500 mt-1">Server ID on battlemetrics.com to automatically cross-reference player joins.</p>
               </div>
+            </div>
+          </div>
+
+          <!-- Day/Night Approaching Alerts Card -->
+          <div class="lg:col-span-2 bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-circle-half-stroke text-amber-400"></i> Day / Night Approaching Alerts
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Automatic tactical announcements as sunrise and sunset approach.</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="setting-daynight-enabled" checked onchange="handleDayNightToggle(this.checked)" class="sr-only peer">
+                <div class="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                <span id="setting-daynight-status-text" class="ml-2 text-xs font-mono font-bold text-amber-400">Active</span>
+              </label>
+            </div>
+
+            <div class="space-y-4 font-mono text-xs">
+              <div>
+                <label class="block uppercase text-gray-400 mb-2">Alert Milestones</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-amber-500/50">
+                    <input type="checkbox" id="setting-daynight-night5m" checked class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-amber-400">5 Mins to Night</div>
+                      <div class="text-[10px] text-gray-500">Alerts before Sunset</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-amber-500/50">
+                    <input type="checkbox" id="setting-daynight-day5m" checked class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-cyan-400">5 Mins to Day</div>
+                      <div class="text-[10px] text-gray-500">Alerts before Sunrise</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-amber-500/50">
+                    <input type="checkbox" id="setting-daynight-day2m" checked class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-yellow-400">2 Mins to Day</div>
+                      <div class="text-[10px] text-gray-500">Urgent dawn alert</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label class="block uppercase text-gray-400 mb-2">Broadcast Destinations</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-amber-500/50">
+                    <input type="checkbox" id="setting-daynight-teamchat" checked class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-gray-200">In-Game Team Chat</div>
+                      <div class="text-[10px] text-gray-500">Broadcasts directly to team in Rust</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-amber-500/50">
+                    <input type="checkbox" id="setting-daynight-matrix" checked class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                    <div>
+                      <div class="font-bold text-gray-200">Matrix Team Chat &amp; Alerts</div>
+                      <div class="text-[10px] text-gray-500">E2EE team chat room &amp; alert channel</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <p class="text-[10px] text-gray-500 italic">Command shortcut: Use <code class="text-amber-400">!daynight</code>, <code class="text-amber-400">!day</code>, or <code class="text-amber-400">!night</code> in team chat or Matrix to check live celestial status.</p>
             </div>
           </div>
         </div>
