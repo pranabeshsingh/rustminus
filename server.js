@@ -9,6 +9,7 @@ const WebSocket = require("ws");
 const MatrixClient = require("./lib/matrix");
 const RustPlusManager = require("./lib/rustplus-client");
 const FCMService = require("./lib/fcm-service");
+const { GameDatabase } = require("./lib/game-database");
 
 const CONFIG_FILE = path.join(__dirname, "data", "config.json");
 const SERVERS_FILE = path.join(__dirname, "data", "servers.json");
@@ -175,7 +176,10 @@ app.post("/api/auth/login", (req, res) => {
   if (matches) {
     req.session.authenticated = true;
     req.session.user = "admin";
-    return res.json({ success: true, user: "admin" });
+    req.session.save((err) => {
+      if (err) return res.status(500).json({ error: "Failed to save session" });
+      return res.json({ success: true, user: "admin" });
+    });
   } else {
     return res.status(401).json({ error: "Invalid password" });
   }
@@ -308,6 +312,225 @@ app.post("/api/settings", (req, res) => {
   saveConfig(cfg);
   rustManager.logEvent("settings", "Settings Updated", "AI Assistant and External Integration settings updated.");
   res.json({ success: true, message: "Settings saved successfully." });
+});
+
+// ==========================================
+// TACTICAL & STORAGE APIS
+// ==========================================
+
+// 1. Storage & Upkeep APIs
+app.get("/api/storage", (req, res) => {
+  res.json({ success: true, ...rustManager.storageTracker.getState() });
+});
+
+app.get("/api/storage/search", (req, res) => {
+  const q = req.query.q || "";
+  const result = rustManager.storageTracker.searchContains(q);
+  res.json({ success: true, result });
+});
+
+app.get("/api/storage/:id/recycle", (req, res) => {
+  const isSafeZone = req.query.safezone === "true";
+  const yieldData = rustManager.storageTracker.calculateRecycleYield(req.params.id, isSafeZone);
+  if (!yieldData) return res.status(404).json({ error: "Container not found or empty" });
+  res.json({ success: true, yield: yieldData });
+});
+
+app.post("/api/storage/:id/monitor", (req, res) => {
+  const msg = rustManager.storageTracker.toggleMonitor(req.params.id);
+  res.json({
+    success: true,
+    message: msg,
+    isMonitored: rustManager.storageTracker.monitoredContainers.has(Number(req.params.id))
+  });
+});
+
+app.post("/api/storage/refresh", async (req, res) => {
+  try {
+    const paired = rustManager.storageTracker.getPairedStorageMonitors();
+    for (const p of paired) {
+      if (p.id) await rustManager.storageTracker.fetchEntity(p.id);
+    }
+    res.json({ success: true, ...rustManager.storageTracker.getState() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Automation Rules APIs
+app.get("/api/automation", (req, res) => {
+  res.json({ success: true, ...rustManager.deviceAutomation.getState() });
+});
+
+app.post("/api/automation/auto-rule", (req, res) => {
+  const { entityId, type, timeStr } = req.body;
+  if (!entityId || !type || !timeStr) return res.status(400).json({ error: "Missing required fields" });
+  const msg = rustManager.deviceAutomation.setAutoRule(entityId, type, timeStr);
+  res.json({ success: true, message: msg, state: rustManager.deviceAutomation.getState() });
+});
+
+app.delete("/api/automation/auto-rule/:entityId", (req, res) => {
+  const msg = rustManager.deviceAutomation.clearAutoRule(req.params.entityId);
+  res.json({ success: true, message: msg, state: rustManager.deviceAutomation.getState() });
+});
+
+app.post("/api/automation/day-night", (req, res) => {
+  const { entityId, action } = req.body;
+  if (!entityId || !action) return res.status(400).json({ error: "entityId and action are required" });
+  const msg = rustManager.deviceAutomation.setDayNightRule(entityId, action);
+  res.json({ success: true, message: msg, state: rustManager.deviceAutomation.getState() });
+});
+
+app.delete("/api/automation/day-night/:entityId", (req, res) => {
+  const msg = rustManager.deviceAutomation.clearDayNightRule(req.params.entityId);
+  res.json({ success: true, message: msg, state: rustManager.deviceAutomation.getState() });
+});
+
+app.post("/api/automation/team-offline", (req, res) => {
+  const { entityId, action } = req.body;
+  if (!entityId || !action) return res.status(400).json({ error: "entityId and action are required" });
+  const msg = rustManager.deviceAutomation.setTeamOfflineRule(entityId, action);
+  res.json({ success: true, message: msg, state: rustManager.deviceAutomation.getState() });
+});
+
+app.delete("/api/automation/team-offline/:entityId", (req, res) => {
+  const msg = rustManager.deviceAutomation.clearTeamRules(req.params.entityId);
+  res.json({ success: true, message: msg, state: rustManager.deviceAutomation.getState() });
+});
+
+app.post("/api/automation/sam-config", (req, res) => {
+  const { delaySec, voiceWarning } = req.body;
+  if (delaySec !== undefined) rustManager.deviceAutomation.setSamDelay(delaySec);
+  if (typeof voiceWarning === "boolean") rustManager.deviceAutomation.samVoiceWarning = voiceWarning;
+  res.json({
+    success: true,
+    samConfig: {
+      delaySec: rustManager.deviceAutomation.samAutoOnDelaySec,
+      voiceWarning: rustManager.deviceAutomation.samVoiceWarning
+    }
+  });
+});
+
+app.post("/api/automation/ttoggle", (req, res) => {
+  const { entityId, timeStr } = req.body;
+  if (!entityId || !timeStr) return res.status(400).json({ error: "entityId and timeStr required" });
+  const msg = rustManager.deviceAutomation.startTimedToggle(entityId, timeStr, true);
+  res.json({ success: true, message: msg });
+});
+
+// 3. Team Telemetry & AFK & Leaderboard APIs
+app.get("/api/team/telemetry", (req, res) => {
+  res.json({ success: true, ...rustManager.teamTracker.getTelemetryState() });
+});
+
+// 4. Tactical Calculators APIs
+app.get("/api/calc/durability", (req, res) => {
+  const target = req.query.target || "garage door";
+  const durability = GameDatabase.getDurabilityData(target);
+  const breakdown = GameDatabase.getDurability(target, "explosive", false);
+  const bullets = GameDatabase.getDurability(target, "bullet", false);
+  const meleeHard = GameDatabase.getDurability(target, "melee", false);
+  const meleeSoft = GameDatabase.getDurability(target, "melee", true);
+  res.json({ success: true, target, durability, breakdown, bullets, meleeHard, meleeSoft });
+});
+
+app.get("/api/calc/craft", (req, res) => {
+  const item = req.query.item || "rocket";
+  const count = parseInt(req.query.count || req.query.qty, 10) || 1;
+  const craft = GameDatabase.getCraftData(item, count);
+  const result = GameDatabase.getCraft(item, count);
+  res.json({ success: true, item, count, craft, result });
+});
+
+app.get("/api/calc/recycle", (req, res) => {
+  const item = req.query.item || "tech trash";
+  const count = parseInt(req.query.count || req.query.qty, 10) || 1;
+  const isSafeZone = req.query.safezone === "true";
+  const recycle = GameDatabase.getRecycleData(item, count, isSafeZone);
+  const result = GameDatabase.getRecycle(`${count} ${item}`, isSafeZone);
+  res.json({ success: true, item, count, isSafeZone, recycle, result });
+});
+
+app.get("/api/calc/turrets", (req, res) => {
+  const tt = rustManager.turretTracker || rustManager.commandProcessor?.turretTracker;
+  const list = tt?.turrets || [];
+  const overlap = tt ? tt.checkOverlap() : { hasOverlaps: false, overlaps: [] };
+  res.json({ success: true, turrets: list, overlap });
+});
+
+app.post("/api/calc/turrets", (req, res) => {
+  const tt = rustManager.turretTracker || rustManager.commandProcessor?.turretTracker;
+  if (!tt) return res.status(500).json({ error: "Turret tracker not available" });
+  const { name, x, y, floor } = req.body;
+  if (x === undefined || y === undefined) return res.status(400).json({ error: "x and y are required" });
+  const result = tt.addTurret(name || "Turret", Number(x), Number(y), Number(floor || 1));
+  const overlap = tt.checkOverlap();
+  res.json({ success: true, result, overlap, turrets: tt.turrets });
+});
+
+app.delete("/api/calc/turrets", (req, res) => {
+  const tt = rustManager.turretTracker || rustManager.commandProcessor?.turretTracker;
+  if (tt) tt.clear();
+  res.json({ success: true, message: "Cleared all turrets." });
+});
+
+// 5. Player & Clan Intelligence (Steam & BattleMetrics)
+app.get("/api/intel/steam/:query", async (req, res) => {
+  const details = await rustManager.externalApis.getSteamProfileDetails(req.params.query);
+  res.json(details);
+});
+
+app.get("/api/intel/watchlist", (req, res) => {
+  res.json({ success: true, watchlist: rustManager.externalApis.getWatchlist() });
+});
+
+app.post("/api/intel/watchlist", (req, res) => {
+  const { nameOrId } = req.body;
+  if (!nameOrId) return res.status(400).json({ error: "nameOrId is required" });
+  const msg = rustManager.externalApis.trackPlayer(nameOrId);
+  res.json({ success: true, message: msg, watchlist: rustManager.externalApis.getWatchlist() });
+});
+
+app.delete("/api/intel/watchlist/:id", (req, res) => {
+  rustManager.externalApis.removeFromWatchlist(req.params.id);
+  res.json({ success: true, watchlist: rustManager.externalApis.getWatchlist() });
+});
+
+// 6. Tactical Notes & WebUI AI Chat
+app.get("/api/notes", (req, res) => {
+  const notes = Array.from(rustManager.aiAssistant.savedNotes.entries()).map(([k, v]) => ({ name: k, text: v }));
+  res.json({ success: true, notes });
+});
+
+app.post("/api/notes", (req, res) => {
+  const { name, text } = req.body;
+  if (!name || !text) return res.status(400).json({ error: "name and text are required" });
+  const msg = rustManager.aiAssistant.saveNote(name, text);
+  res.json({
+    success: true,
+    message: msg,
+    notes: Array.from(rustManager.aiAssistant.savedNotes.entries()).map(([k, v]) => ({ name: k, text: v }))
+  });
+});
+
+app.delete("/api/notes/:name", (req, res) => {
+  rustManager.aiAssistant.savedNotes.delete(req.params.name);
+  res.json({
+    success: true,
+    notes: Array.from(rustManager.aiAssistant.savedNotes.entries()).map(([k, v]) => ({ name: k, text: v }))
+  });
+});
+
+app.delete("/api/notes", (req, res) => {
+  rustManager.aiAssistant.savedNotes.clear();
+  res.json({ success: true, notes: [] });
+});
+
+app.post("/api/ai/chat", async (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: "Message is required" });
+  const reply = await rustManager.aiAssistant.ask(message, "webui");
+  res.json({ success: true, reply });
 });
 
 // Servers Management

@@ -205,6 +205,9 @@
           <button onclick="switchTab('markers')" id="tab-btn-markers" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
             <i class="fa-solid fa-store"></i> World & Vending <span id="badge-marker-count" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded text-rust-400">0</span>
           </button>
+          <button onclick="switchTab('calculators')" id="tab-btn-calculators" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-calculator"></i> Raid & Crafting
+          </button>
           <button onclick="switchTab('servers')" id="tab-btn-servers" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
             <i class="fa-solid fa-list-check"></i> Server Profiles <span id="badge-server-count" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded">0</span>
           </button>
@@ -230,6 +233,54 @@
       <section id="tab-switches" class="tab-content space-y-6">
         
         <!-- Quick Action Master Bar -->
+        <!-- Tool Cupboard Upkeep & Decay Monitor Card -->
+        <div id="tc-upkeep-card" class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-xl relative overflow-hidden">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1c2538] pb-4 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rust-950/80 border border-rust-700 flex items-center justify-center text-rust-400 text-lg">
+                <i class="fa-solid fa-shield-halved"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-lg font-rust font-bold uppercase text-white">Tool Cupboard Upkeep Monitor</h3>
+                  <span id="tc-status-pill" class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700 text-emerald-300">Checking...</span>
+                </div>
+                <p id="tc-name-label" class="text-xs font-mono text-gray-400">Pair a Storage Monitor to your main Tool Cupboard</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <div class="text-right font-mono">
+                <div class="text-[10px] uppercase text-gray-400">Remaining Upkeep</div>
+                <div id="tc-time-remaining" class="text-xl font-rust font-bold text-emerald-400">-- days (-- hrs)</div>
+              </div>
+              <button onclick="refreshStorageData()" class="bg-[#141b29] hover:bg-[#1e2739] text-gray-300 border border-[#222e44] px-3 py-2 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- TC Resources Stock Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg flex items-center justify-between">
+              <span class="text-amber-300 flex items-center gap-1.5"><i class="fa-solid fa-tree"></i> Wood</span>
+              <span id="tc-res-wood" class="text-white font-bold">0</span>
+            </div>
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg flex items-center justify-between">
+              <span class="text-gray-300 flex items-center gap-1.5"><i class="fa-solid fa-cubes"></i> Stones</span>
+              <span id="tc-res-stone" class="text-white font-bold">0</span>
+            </div>
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg flex items-center justify-between">
+              <span class="text-cyan-300 flex items-center gap-1.5"><i class="fa-solid fa-gem"></i> Metal Frags</span>
+              <span id="tc-res-metal" class="text-white font-bold">0</span>
+            </div>
+            <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg flex items-center justify-between">
+              <span class="text-yellow-400 flex items-center gap-1.5"><i class="fa-solid fa-crown"></i> High Quality</span>
+              <span id="tc-res-hqm" class="text-white font-bold">0</span>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg relative overflow-hidden">
           <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
@@ -284,7 +335,85 @@
           <!-- Dynamic smart switch cards rendered here -->
         </div>
 
-        <!-- Smart Alarms Section -->
+        <!-- Warehouse Inventory & Storage Search Section -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436]">
+            <div>
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-boxes-stacked text-amber-400"></i> Base Storage & Warehouse Inventory
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Real-time inventory from paired storage monitors with item diff monitoring.</p>
+            </div>
+
+            <!-- Universal Item Search -->
+            <div class="relative w-full sm:w-72">
+              <input type="text" id="storage-search-input" oninput="handleStorageSearch(this.value)" placeholder="Search items in boxes (e.g. sulfur, c4)..."
+                class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-gray-500 font-mono focus:outline-none focus:border-rust-500">
+              <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-gray-500 text-xs"></i>
+            </div>
+          </div>
+
+          <!-- Search Results Banner -->
+          <div id="storage-search-results" class="hidden bg-[#0b0e14] border border-rust-500/40 p-3.5 rounded-xl font-mono text-xs"></div>
+
+          <!-- Containers Grid -->
+          <div id="storage-containers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No paired storage monitors detected. Pair with the Wire Tool in-game.</div>
+          </div>
+        </div>
+
+        <!-- Air Defense SAM Automation & Smart Alarm Log Card -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+            <div class="border-b border-[#1c2538] pb-3">
+              <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-jet-fighter text-cyan-400"></i> Air Defense (SAM) Automated Re-Arming
+              </h3>
+              <p class="text-xs font-mono text-gray-400">When SAM sites are powered off for takeoff, automatically re-arm them after a set delay.</p>
+            </div>
+
+            <div class="space-y-4 font-mono text-xs">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="uppercase text-gray-400">Auto Re-Arm Delay</span>
+                  <span id="sam-delay-label" class="text-cyan-400 font-bold">180s (3m)</span>
+                </div>
+                <input type="range" id="sam-delay-slider" min="0" max="600" step="30" value="180" oninput="handleSamDelayChange(this.value)"
+                  class="w-full accent-rust-500 cursor-pointer">
+                <div class="flex justify-between text-[10px] text-gray-500">
+                  <span>Disabled (0s)</span>
+                  <span>3 mins</span>
+                  <span>10 mins</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between pt-2 border-t border-[#1e2638]">
+                <div>
+                  <div class="text-gray-300 font-bold">10-Second Voice Warning</div>
+                  <div class="text-[10px] text-gray-500">Announces "SAM sites activating in 10s" in Matrix voice call</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="sam-voice-toggle" checked onchange="handleSamVoiceToggle(this.checked)" class="sr-only peer">
+                  <div class="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+            <div class="border-b border-[#1c2538] pb-3">
+              <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-rust-500"></i> Smart Alarm Activation History
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Timeline of recent perimeter and core alarm trips.</p>
+            </div>
+            <div id="alarm-history-list" class="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar font-mono text-xs">
+              <p class="text-gray-500 italic">No recent alarms triggered.</p>
+            </div>
+          </div>
+        </div>
+
+                <!-- Smart Alarms Section -->
         <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
@@ -705,6 +834,73 @@
           </form>
         </div>
 
+        <!-- 5. WIPE LEADERBOARD & RECENT DEATHS -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Wipe Stats Leaderboard -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-[#1c2436]">
+              <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-trophy text-amber-400"></i> Team Wipe Leaderboard
+              </h3>
+              <span class="text-[11px] font-mono text-gray-500">Playtime & Telemetry</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left font-mono text-xs">
+                <thead class="text-gray-400 uppercase text-[10px] border-b border-[#1e2638]">
+                  <tr>
+                    <th class="pb-2">Teammate</th>
+                    <th class="pb-2">Playtime</th>
+                    <th class="pb-2">AFK Time</th>
+                    <th class="pb-2">Deaths</th>
+                    <th class="pb-2">Distance</th>
+                  </tr>
+                </thead>
+                <tbody id="telemetry-leaderboard-body" class="divide-y divide-[#1e2638] text-gray-300">
+                  <tr><td colspan="5" class="py-3 text-center text-gray-500 italic">No wipe telemetry recorded yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Recent Deaths History -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-[#1c2436]">
+              <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-skull text-red-400"></i> Recent Teammate Deaths
+              </h3>
+              <span class="text-[11px] font-mono text-gray-500">Last 15 Casualties</span>
+            </div>
+            <div id="telemetry-deaths-list" class="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar font-mono text-xs">
+              <p class="text-gray-500 italic">No recent deaths recorded.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. TACTICAL TEAM NOTES STICKY BOARD -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436]">
+            <div>
+              <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-note-sticky text-yellow-400"></i> Tactical Team Notes Board
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Shared tactical reminders (synced with !note &amp; !notes commands).</p>
+            </div>
+            <form id="note-add-form" onsubmit="handleAddNote(event)" class="flex gap-2">
+              <input type="text" id="note-input-name" required placeholder="Note tag (e.g. raidbox)"
+                class="bg-[#0a0d14] border border-[#20293a] rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-rust-500 w-32">
+              <input type="text" id="note-input-text" required placeholder="Note message (e.g. Sulfur in Box 3)..."
+                class="bg-[#0a0d14] border border-[#20293a] rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-rust-500 w-48 sm:w-64">
+              <button type="submit" class="bg-rust-700 hover:bg-rust-600 text-white font-rust uppercase font-bold text-xs px-3 py-1.5 rounded-lg transition shadow">
+                Add
+              </button>
+            </form>
+          </div>
+
+          <div id="team-notes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 font-mono text-xs">
+            <p class="text-gray-500 italic col-span-full">No team notes saved. Add one above or type !note &lt;name&gt; &lt;text&gt; in chat.</p>
+          </div>
+        </div>
+
       </section>
 
       <!-- ================================================================= -->
@@ -771,6 +967,315 @@
             <!-- Vending Machines List -->
             <div id="vending-machines-list" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar font-mono text-xs">
               <p class="text-gray-500 italic p-4 text-center">No vending machines currently broadcast on map.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB: TACTICAL CALCULATORS (Raiding, Crafting, Recycler & Turrets) -->
+      <!-- ================================================================= -->
+      <section id="tab-calculators" class="tab-content hidden space-y-6">
+        <!-- Top Toolbar -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-xl">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-rust font-bold uppercase text-white flex items-center gap-3">
+                <i class="fa-solid fa-calculator text-rust-500"></i> Tactical Calculators & Engineering
+              </h2>
+              <p class="text-xs font-mono text-gray-400 mt-1">Raiding durability tables, sulfur math, crafting breakdown, recycler efficiency, and 40m turret interference checker.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="switchCalcSubtab('raid')" id="calc-subtab-raid" class="calc-subtab-btn active px-3.5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-white bg-rust-700/80 border border-rust-500 transition">
+                <i class="fa-solid fa-bomb"></i> Raiding Durability
+              </button>
+              <button onclick="switchCalcSubtab('craft')" id="calc-subtab-craft" class="calc-subtab-btn px-3.5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent transition">
+                <i class="fa-solid fa-hammer"></i> Craft & Recycle
+              </button>
+              <button onclick="switchCalcSubtab('turret')" id="calc-subtab-turret" class="calc-subtab-btn px-3.5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent transition">
+                <i class="fa-solid fa-crosshairs"></i> Turret 40m Sphere
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1. RAIDING & DURABILITY CALCULATOR -->
+        <div id="calc-panel-raid" class="space-y-6">
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1c2538] pb-4">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-bomb text-red-400"></i> Target Destruction Calculator
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Select any target building block or deployable to calculate minimum explosives and raw sulfur required.</p>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <label class="text-xs font-mono uppercase text-gray-400">Target:</label>
+                <select id="calc-raid-target-select" onchange="updateRaidCalculator()" class="bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-rust-500 focus:outline-none">
+                  <option value="sheet metal door">Sheet Metal Door (250 HP)</option>
+                  <option value="garage door" selected>Garage Door (600 HP)</option>
+                  <option value="armored door">Armored Door (800 HP)</option>
+                  <option value="wooden door">Wooden Door (200 HP)</option>
+                  <option value="stone wall">Stone Wall / Foundation (500 HP)</option>
+                  <option value="sheet metal wall">Sheet Metal Wall (1,000 HP)</option>
+                  <option value="armored wall">Armored Wall (2,000 HP)</option>
+                  <option value="wooden wall">Wood Wall (250 HP)</option>
+                  <option value="high external stone wall">High External Stone Wall (500 HP)</option>
+                  <option value="high external wooden wall">High External Wood Wall (500 HP)</option>
+                  <option value="auto turret">Auto Turret (1,000 HP)</option>
+                  <option value="sam site">SAM Site (1,000 HP)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Explosive Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <!-- C4 Card -->
+              <div class="bg-[#0b0e14] border border-red-900/50 p-4 rounded-xl relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-rust uppercase font-bold text-red-400 flex items-center gap-1.5"><i class="fa-solid fa-stopwatch"></i> Timed Explosive (C4)</span>
+                  <span class="text-[10px] font-mono bg-red-950/80 border border-red-800 text-red-300 px-1.5 py-0.5 rounded">2,200 Sulfur / ea</span>
+                </div>
+                <div class="flex items-baseline gap-2 mt-2">
+                  <span id="raid-c4-count" class="text-3xl font-rust font-bold text-white">2</span>
+                  <span class="text-xs font-mono text-gray-400">C4 required</span>
+                </div>
+                <p id="raid-c4-sulfur" class="text-xs font-mono text-amber-400 mt-2">Raw Sulfur: 4,400</p>
+              </div>
+
+              <!-- Rockets Card -->
+              <div class="bg-[#0b0e14] border border-orange-900/50 p-4 rounded-xl relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-rust uppercase font-bold text-orange-400 flex items-center gap-1.5"><i class="fa-solid fa-rocket"></i> Rocket</span>
+                  <span class="text-[10px] font-mono bg-orange-950/80 border border-orange-800 text-orange-300 px-1.5 py-0.5 rounded">1,400 Sulfur / ea</span>
+                </div>
+                <div class="flex items-baseline gap-2 mt-2">
+                  <span id="raid-rocket-count" class="text-3xl font-rust font-bold text-white">3</span>
+                  <span class="text-xs font-mono text-gray-400">Rockets required</span>
+                </div>
+                <p id="raid-rocket-sulfur" class="text-xs font-mono text-amber-400 mt-2">Raw Sulfur: 4,200</p>
+              </div>
+
+              <!-- Satchel Card -->
+              <div class="bg-[#0b0e14] border border-amber-900/50 p-4 rounded-xl relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-rust uppercase font-bold text-amber-400 flex items-center gap-1.5"><i class="fa-solid fa-box"></i> Satchel Charge</span>
+                  <span class="text-[10px] font-mono bg-amber-950/80 border border-amber-800 text-amber-300 px-1.5 py-0.5 rounded">480 Sulfur / ea</span>
+                </div>
+                <div class="flex items-baseline gap-2 mt-2">
+                  <span id="raid-satchel-count" class="text-3xl font-rust font-bold text-white">9</span>
+                  <span class="text-xs font-mono text-gray-400">Satchels required</span>
+                </div>
+                <p id="raid-satchel-sulfur" class="text-xs font-mono text-amber-400 mt-2">Raw Sulfur: 4,320</p>
+              </div>
+
+              <!-- Explosive 5.56 Card -->
+              <div class="bg-[#0b0e14] border border-yellow-900/50 p-4 rounded-xl relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-rust uppercase font-bold text-yellow-400 flex items-center gap-1.5"><i class="fa-solid fa-burst"></i> Explosive 5.56</span>
+                  <span class="text-[10px] font-mono bg-yellow-950/80 border border-yellow-800 text-yellow-300 px-1.5 py-0.5 rounded">12.5 Sulfur / rd</span>
+                </div>
+                <div class="flex items-baseline gap-2 mt-2">
+                  <span id="raid-explo-count" class="text-3xl font-rust font-bold text-white">150</span>
+                  <span class="text-xs font-mono text-gray-400">rounds required</span>
+                </div>
+                <p id="raid-explo-sulfur" class="text-xs font-mono text-amber-400 mt-2">Raw Sulfur: 1,875</p>
+              </div>
+            </div>
+
+            <!-- Melee & Secondary Attack Options -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl">
+                <h4 class="text-xs font-rust uppercase font-bold text-cyan-400 mb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-wrench"></i> Melee Durability (Hard-Side vs Soft-Side)
+                </h4>
+                <div id="raid-melee-breakdown" class="text-xs font-mono text-gray-300 space-y-1">
+                  <!-- Dynamic Melee -->
+                </div>
+              </div>
+
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl">
+                <h4 class="text-xs font-rust uppercase font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-gun"></i> Bullet & Siege Durability
+                </h4>
+                <div id="raid-bullet-breakdown" class="text-xs font-mono text-gray-300 space-y-1">
+                  <!-- Dynamic Bullet -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. CRAFTING & RECYCLING CALCULATOR -->
+        <div id="calc-panel-craft" class="hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Crafting Calculator -->
+            <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+              <div class="border-b border-[#1c2538] pb-4">
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-hammer text-amber-400"></i> Crafting Resource Calculator
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Computes raw sulfur, charcoal, metal, cloth, and workbench time.</p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Item to Craft</label>
+                  <select id="calc-craft-item" onchange="updateCraftCalculator()" class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rust-500">
+                    <option value="rocket" selected>Rocket</option>
+                    <option value="c4">Timed Explosive (C4)</option>
+                    <option value="explosives">Explosives</option>
+                    <option value="gunpowder">Gunpowder</option>
+                    <option value="satchel charge">Satchel Charge</option>
+                    <option value="medical syringe">Medical Syringe</option>
+                    <option value="auto turret">Auto Turret</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Quantity</label>
+                  <input type="number" id="calc-craft-qty" value="5" min="1" max="1000" oninput="updateCraftCalculator()"
+                    class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rust-500">
+                </div>
+              </div>
+
+              <div id="craft-results-card" class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl font-mono text-xs space-y-2">
+                <!-- Craft Results -->
+              </div>
+            </div>
+
+            <!-- Recycler Yield Calculator -->
+            <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+              <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
+                <div>
+                  <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                    <i class="fa-solid fa-recycle text-emerald-400"></i> Recycler Yield Calculator
+                  </h3>
+                  <p class="text-xs font-mono text-gray-400">Compare monument 100% vs safe zone 80% yields.</p>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer font-mono text-xs text-gray-300">
+                  <input type="checkbox" id="calc-recycle-safezone" onchange="updateRecycleCalculator()" class="text-rust-500 focus:ring-0">
+                  <span>Safe Zone (80%)</span>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Component</label>
+                  <select id="calc-recycle-item" onchange="updateRecycleCalculator()" class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rust-500">
+                    <option value="tech trash" selected>Tech Trash</option>
+                    <option value="rifle body">Rifle Body</option>
+                    <option value="smg body">SMG Body</option>
+                    <option value="metal pipe">Metal Pipe</option>
+                    <option value="metal spring">Metal Spring</option>
+                    <option value="road signs">Road Signs</option>
+                    <option value="gears">Gears</option>
+                    <option value="sheet metal">Sheet Metal</option>
+                    <option value="electric fuse">Electric Fuse</option>
+                    <option value="targeting computer">Targeting Computer</option>
+                    <option value="cctv camera">CCTV Camera</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Quantity</label>
+                  <input type="number" id="calc-recycle-qty" value="10" min="1" max="1000" oninput="updateRecycleCalculator()"
+                    class="w-full bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rust-500">
+                </div>
+              </div>
+
+              <div id="recycle-results-card" class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl font-mono text-xs space-y-2">
+                <!-- Recycle Results -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Mixing Table Recipes Quick Cheatsheet -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-5 shadow-lg space-y-3">
+            <h3 class="text-base font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-flask text-purple-400"></i> Mixing Table Formulae Quick Reference
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-xs">
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg">
+                <span class="font-bold text-amber-400">Pure Ore Tea:</span>
+                <p class="text-gray-300 mt-1">4x Advanced Ore Tea</p>
+                <p class="text-[10px] text-gray-500">Yield: +50% ore gathering</p>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg">
+                <span class="font-bold text-emerald-400">Pure Max Health Tea:</span>
+                <p class="text-gray-300 mt-1">4x Advanced Max Health Tea</p>
+                <p class="text-[10px] text-gray-500">Yield: +20% max health</p>
+              </div>
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg">
+                <span class="font-bold text-red-400">Explosives:</span>
+                <p class="text-gray-300 mt-1">50 Gunpowder, 3 LGF, 10 Sulfur, 10 Metal Frags</p>
+                <p class="text-[10px] text-gray-500">Craft time: 5 seconds</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. TURRET 40M INTERFERENCE CHECKER -->
+        <div id="calc-panel-turret" class="hidden space-y-6">
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1c2538] pb-4">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-crosshairs text-cyan-400"></i> Auto Turret 40m Sphere Overlap Calculator
+                </h3>
+                <p class="text-xs font-mono text-gray-400">In Rust, auto turrets placed within a 40-meter sphere interfere and reduce each other power. Check spacing before wiring!</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="clearAllTurrets()" class="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-3 py-1.5 rounded-lg text-xs font-rust uppercase font-bold transition">
+                  <i class="fa-solid fa-trash"></i> Clear Turrets
+                </button>
+              </div>
+            </div>
+
+            <!-- Add Turret Form -->
+            <form id="turret-add-form" onsubmit="handleAddTurret(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl font-mono text-xs">
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">Turret Name</label>
+                <input type="text" id="turret-add-name" required placeholder="e.g. Front Gate / Roof NE"
+                  class="w-full bg-[#121722] border border-[#20293a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rust-500">
+              </div>
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">Coordinate X</label>
+                <input type="number" step="0.1" id="turret-add-x" required placeholder="e.g. 1204.5"
+                  class="w-full bg-[#121722] border border-[#20293a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rust-500">
+              </div>
+              <div>
+                <label class="block uppercase text-gray-400 mb-1">Coordinate Y</label>
+                <input type="number" step="0.1" id="turret-add-y" required placeholder="e.g. 842.1"
+                  class="w-full bg-[#121722] border border-[#20293a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rust-500">
+              </div>
+              <div class="flex items-end gap-2">
+                <button type="button" onclick="fillTurretPlayerPos()" title="Use my current coords" class="bg-[#141b29] hover:bg-[#1e2739] text-cyan-300 border border-[#222e44] px-3 py-2 rounded-lg text-xs font-mono transition flex items-center justify-center">
+                  <i class="fa-solid fa-location-crosshairs"></i>
+                </button>
+                <button type="submit" class="flex-1 bg-rust-600 hover:bg-rust-500 text-white font-rust uppercase font-bold text-xs py-2 rounded-lg transition shadow">
+                  <i class="fa-solid fa-plus"></i> Add
+                </button>
+              </div>
+            </form>
+
+            <!-- Overlap Alert Banner -->
+            <div id="turret-overlap-alert" class="hidden p-4 rounded-xl border font-mono text-xs flex items-center gap-3"></div>
+
+            <!-- Turret List Table -->
+            <div class="bg-[#0b0e14] border border-[#1e2638] rounded-xl overflow-hidden">
+              <table class="w-full text-left font-mono text-xs">
+                <thead class="bg-[#121722] text-gray-400 uppercase text-[10px] border-b border-[#1e2638]">
+                  <tr>
+                    <th class="p-3">Turret Name</th>
+                    <th class="p-3">X</th>
+                    <th class="p-3">Y</th>
+                    <th class="p-3">Interference Status (&lt; 40m)</th>
+                  </tr>
+                </thead>
+                <tbody id="turrets-table-body" class="divide-y divide-[#1e2638] text-gray-300">
+                  <tr><td colspan="4" class="p-4 text-center text-gray-500 italic">No turrets recorded yet. Add one above or use !turret-add in-game.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1039,6 +1544,80 @@
           </div>
         </div>
 
+        <!-- Steam Profile & Enemy Intelligence Hub -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Steam Profile & VAC Ban Inspector -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
+            <div class="border-b border-[#1c2538] pb-3">
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-brands fa-steam text-cyan-400"></i> Steam Profile &amp; VAC Ban Inspector
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Instantly inspect any player for VAC bans, game bans, and account age.</p>
+            </div>
+
+            <form onsubmit="handleSteamLookup(event)" class="flex gap-2">
+              <input type="text" id="steam-lookup-input" required placeholder="SteamID64, profile link, or vanity URL..."
+                class="flex-1 bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rust-500">
+              <button type="submit" id="btn-steam-lookup" class="bg-cyan-900 hover:bg-cyan-800 text-cyan-200 font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg transition shadow">
+                Inspect
+              </button>
+            </form>
+
+            <div id="steam-lookup-result" class="hidden bg-[#0b0e14] border border-[#1e2638] p-4 rounded-xl font-mono text-xs">
+              <!-- Steam profile card rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- BattleMetrics & Enemy Watchlist -->
+          <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2538] pb-3">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-binoculars text-rust-500"></i> Enemy Player &amp; Clan Watchlist
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Real-time alerts when tracked enemies join or leave the server.</p>
+              </div>
+            </div>
+
+            <form onsubmit="handleAddWatchlist(event)" class="flex gap-2">
+              <input type="text" id="watchlist-input-name" required placeholder="Enemy name or SteamID..."
+                class="flex-1 bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rust-500">
+              <button type="submit" class="bg-rust-700 hover:bg-rust-600 text-white font-rust uppercase font-bold text-xs px-4 py-2 rounded-lg transition shadow">
+                Track
+              </button>
+            </form>
+
+            <div id="watchlist-items-list" class="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar font-mono text-xs">
+              <p class="text-gray-500 italic">No enemies currently tracked.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- WebUI AI Assistant Consultant Chat Widget -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-[#1c2538] pb-3">
+            <div>
+              <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-comments text-purple-400"></i> WebUI Tactical AI Consultant
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Ask tactical questions, counter-raid strategies, and monument guides directly from your browser.</p>
+            </div>
+            <span id="webui-ai-status-indicator" class="text-xs font-mono px-2.5 py-1 rounded bg-gray-800 text-gray-400">AI Disabled</span>
+          </div>
+
+          <div id="ai-chat-box" class="bg-[#0b0e14] border border-[#1e2638] rounded-xl p-4 min-h-[120px] max-h-[260px] overflow-y-auto custom-scrollbar font-mono text-xs space-y-2 text-gray-300">
+            <p class="text-gray-500 italic">Enable the AI Assistant above and enter an API key to chat with the tactical consultant.</p>
+          </div>
+
+          <form onsubmit="handleWebUiAiChat(event)" class="flex gap-2">
+            <input type="text" id="ai-chat-input" placeholder="e.g. How do I counter a 3-man roofcamp at Launch Site?..."
+              class="flex-1 bg-[#0b0e14] border border-[#1e2638] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 font-mono focus:outline-none focus:border-rust-500">
+            <button type="submit" id="ai-chat-submit-btn" class="bg-purple-800 hover:bg-purple-700 text-purple-200 font-rust uppercase font-bold text-xs px-5 py-2 rounded-lg transition shadow flex items-center gap-2">
+              <i class="fa-solid fa-paper-plane"></i> Ask AI
+            </button>
+          </form>
+        </div>
+
         <!-- Command Cheatsheet Card -->
         <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
           <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
@@ -1250,5 +1829,74 @@
   </div>
 
   <script src="/app.js"></script>
+  <!-- SWITCH AUTOMATION RULES MODAL -->
+  <div id="modal-automation" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="max-w-md w-full bg-[#121722] border border-[#232d3f] rounded-xl p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-[#20293a] mb-5">
+        <div>
+          <h3 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
+            <i class="fa-solid fa-gear text-rust-500"></i> Smart Automation Rules
+          </h3>
+          <p id="modal-automation-switch-name" class="text-xs font-mono text-gray-400">Switch Name</p>
+        </div>
+        <button onclick="closeModal('modal-automation')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <input type="hidden" id="automation-entity-id">
+
+      <div class="space-y-4 font-mono text-xs">
+        <!-- Auto-Off / Auto-On Timer -->
+        <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-2">
+          <label class="block uppercase font-bold text-gray-300">Auto-Off Timer</label>
+          <div class="flex gap-2">
+            <input type="text" id="auto-rule-time" placeholder="e.g. 30s, 2m, 5m"
+              class="flex-1 bg-[#121722] border border-[#20293a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-rust-500">
+            <button onclick="saveAutoOffRule()" class="bg-rust-700 hover:bg-rust-600 text-white px-3 py-1.5 rounded-lg font-rust uppercase font-bold">
+              Set
+            </button>
+            <button onclick="clearAutoRuleCurrent()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg">
+              <i class="fa-solid fa-trash text-xs"></i>
+            </button>
+          </div>
+          <p id="auto-rule-current-status" class="text-[10px] text-gray-500">No auto timer set</p>
+        </div>
+
+        <!-- Day / Night Solar Trigger -->
+        <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-2">
+          <label class="block uppercase font-bold text-gray-300">Day / Night Solar Cycle</label>
+          <select id="daynight-rule-select" onchange="saveDayNightRule(this.value)" class="w-full bg-[#121722] border border-[#20293a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rust-500">
+            <option value="none">Disabled (Manual Only)</option>
+            <option value="night-on">Turn ON at Night (Sunset)</option>
+            <option value="day-on">Turn ON at Day (Sunrise)</option>
+            <option value="night-off">Turn OFF at Night</option>
+            <option value="day-off">Turn OFF at Day</option>
+          </select>
+        </div>
+
+        <!-- Sleep Defense / Team Offline Trigger -->
+        <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-2">
+          <label class="block uppercase font-bold text-gray-300">Sleep Defense (Team Offline)</label>
+          <select id="teamoffline-rule-select" onchange="saveTeamOfflineRule(this.value)" class="w-full bg-[#121722] border border-[#20293a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rust-500">
+            <option value="none">Disabled</option>
+            <option value="on">Turn ON when all teammates are offline</option>
+            <option value="off">Turn OFF when all teammates are offline</option>
+          </select>
+        </div>
+
+        <!-- Timed Cycle Trigger -->
+        <div class="bg-[#0b0e14] border border-[#1e2638] p-3.5 rounded-lg space-y-2">
+          <label class="block uppercase font-bold text-gray-300">One-Shot Timed Toggle (!ttoggle)</label>
+          <div class="flex gap-2">
+            <input type="text" id="ttoggle-input-time" placeholder="e.g. 1m, 30s"
+              class="flex-1 bg-[#121722] border border-[#20293a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-rust-500">
+            <button onclick="executeTimedToggle()" class="bg-amber-800 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg font-rust uppercase font-bold">
+              Toggle
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

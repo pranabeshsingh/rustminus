@@ -21,7 +21,11 @@ let state = {
   matrix: { connected: false },
   recentEvents: [],
   pairingLogs: [],
-  wsConnected: false
+  wsConnected: false,
+  storage: null,
+  automation: null,
+  telemetry: null,
+  notes: []
 };
 
 let ws = null;
@@ -364,6 +368,10 @@ function renderAll() {
   renderMarkers();
   renderTelemetry();
   renderSystemLogs();
+  loadStorageAndUpkeepData();
+  loadAutomationData();
+  loadTeamTelemetryData();
+  loadNotesData();
 }
 
 function updateHeaderBadges() {
@@ -448,9 +456,14 @@ function renderDevices() {
                   <span class="text-[10px] font-mono border px-1.5 py-0.5 rounded ${categoryBadge}">${sw.category || "Switch"}</span>
                 </div>
               </div>
-              <button onclick="deleteEntity('${sw.id}')" title="Delete Device" class="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition text-xs">
-                <i class="fa-solid fa-trash"></i>
-              </button>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button onclick="openAutomationModal('${sw.id}', '${encodeURIComponent(sw.name || sw.id)}')" title="Smart Rules & Timers" class="text-gray-400 hover:text-cyan-300 transition text-xs p-1">
+                  <i class="fa-solid fa-gear"></i>
+                </button>
+                <button onclick="deleteEntity('${sw.id}')" title="Delete Device" class="text-gray-500 hover:text-red-400 transition text-xs p-1">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
             </div>
 
             <div class="flex items-center justify-between pt-2 border-t border-[#1a2233]">
@@ -942,12 +955,18 @@ function renderTeamInfo() {
     const isLeader = String(m.steamId) === leaderId;
     const grid = (m.x !== undefined && m.y !== undefined) ? calculateGridPos(m.x, m.y, mapSize) : "Unknown";
     
+    const afkInfo = state.telemetry?.afk ? state.telemetry.afk[String(m.steamId)] : null;
     let statusClass = "bg-red-950/80 text-red-300 border-red-800";
     let statusLabel = "💀 DEAD";
     if (m.isAlive) {
       if (m.isOnline) {
-        statusClass = "bg-emerald-950/80 text-emerald-300 border-emerald-700";
-        statusLabel = "🟢 ALIVE";
+        if (afkInfo && afkInfo.isAfk) {
+          statusClass = "bg-amber-950/80 text-amber-300 border-amber-700";
+          statusLabel = `💤 AFK (${afkInfo.idleDurationFormatted || '5m+'})`;
+        } else {
+          statusClass = "bg-emerald-950/80 text-emerald-300 border-emerald-700";
+          statusLabel = "🟢 ALIVE";
+        }
       } else {
         statusClass = "bg-amber-950/80 text-amber-300 border-amber-700";
         statusLabel = "💤 SLEEPING";
@@ -984,8 +1003,11 @@ function renderTeamInfo() {
             <span class="text-gray-500">Sector:</span>
             <span class="text-cyan-400 font-bold ml-1">${grid}</span>
           </div>
-          <div class="col-span-2 text-gray-400 text-[10px]">
-            Coords: X: ${Math.round(m.x || 0)}, Y: ${Math.round(m.y || 0)}
+          <div class="col-span-2 text-gray-400 text-[10px] flex items-center justify-between">
+            <span>Coords: X: ${Math.round(m.x || 0)}, Y: ${Math.round(m.y || 0)}</span>
+            <button onclick="focusPlayerOnMap(${m.x || 0}, ${m.y || 0})" class="text-cyan-400 hover:text-cyan-300 text-[10px] flex items-center gap-1 font-bold">
+              <i class="fa-solid fa-location-dot"></i> Pin Map
+            </button>
           </div>
         </div>
 
@@ -1954,14 +1976,22 @@ function switchTab(tabId) {
         redrawMap();
       }
     }, 50);
+  } else if (tabId === "switches") {
+    loadStorageAndUpkeepData();
+    loadAutomationData();
   } else if (tabId === "telemetry") {
     renderServerInfo();
     renderTimeInfo();
     renderTeamInfo();
+    loadTeamTelemetryData();
+    loadNotesData();
   } else if (tabId === "markers") {
     renderMarkers();
+  } else if (tabId === "calculators") {
+    loadCalculatorsData();
   } else if (tabId === "settings") {
     loadSettings();
+    loadWatchlistData();
   }
 }
 
@@ -2347,3 +2377,1124 @@ window.saveSettingsForm = saveSettingsForm;
 window.handleAiProviderChange = handleAiProviderChange;
 window.selectModelPreset = selectModelPreset;
 window.togglePasswordVisibility = togglePasswordVisibility;
+
+
+// ==========================================
+// 6. STORAGE, UPKEEP & INVENTORY
+// ==========================================
+async function loadStorageAndUpkeepData() {
+  try {
+    const res = await fetch("/api/storage");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.storage = data;
+
+    // 1. Render TC Upkeep
+    const pill = document.getElementById("tc-status-pill");
+    const nameLabel = document.getElementById("tc-name-label");
+    const timeRemaining = document.getElementById("tc-time-remaining");
+    const resWood = document.getElementById("tc-res-wood");
+    const resStone = document.getElementById("tc-res-stone");
+    const resMetal = document.getElementById("tc-res-metal");
+    const resHqm = document.getElementById("tc-res-hqm");
+
+    if (data.tc) {
+      if (pill) {
+        if (data.tc.isDecaying) {
+          pill.className = "text-xs font-mono px-2 py-0.5 rounded bg-red-950/80 border border-red-700 text-red-300 font-bold animate-pulse";
+          pill.textContent = "⚠️ BASE DECAYING";
+        } else {
+          pill.className = "text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700 text-emerald-300 font-bold";
+          pill.textContent = "PROTECTED";
+        }
+      }
+      if (nameLabel) nameLabel.textContent = `${data.tc.name || "Tool Cupboard"} (ID: ${data.tc.id})`;
+      if (timeRemaining) {
+        if (data.tc.isDecaying) {
+          timeRemaining.className = "text-xl font-rust font-bold text-red-400";
+          timeRemaining.textContent = "DECAYING NOW (0h)";
+        } else {
+          timeRemaining.className = "text-xl font-rust font-bold text-emerald-400";
+          timeRemaining.textContent = `${data.tc.remainingDays || 0}d (${data.tc.remainingHours || 0}h) remaining`;
+        }
+      }
+      if (resWood) resWood.textContent = (data.tc.resources?.wood || 0).toLocaleString();
+      if (resStone) resStone.textContent = (data.tc.resources?.stone || 0).toLocaleString();
+      if (resMetal) resMetal.textContent = (data.tc.resources?.metal || 0).toLocaleString();
+      if (resHqm) resHqm.textContent = (data.tc.resources?.hqm || 0).toLocaleString();
+    } else {
+      if (pill) {
+        pill.className = "text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-400";
+        pill.textContent = "No TC Paired";
+      }
+      if (nameLabel) nameLabel.textContent = "Pair a storage monitor to your Tool Cupboard";
+      if (timeRemaining) timeRemaining.textContent = "--";
+    }
+
+    // 2. Render Storage Containers
+    const grid = document.getElementById("storage-containers-grid");
+    if (grid) {
+      const containers = data.containers || [];
+      if (containers.length === 0) {
+        grid.innerHTML = `<div class="p-6 text-center text-gray-500 font-mono text-xs col-span-full">No paired storage monitors detected. Pair with the Wire Tool in-game.</div>`;
+      } else {
+        grid.innerHTML = containers.map(box => {
+          const isMonitored = !!box.monitoring;
+
+          return `
+            <div class="bg-[#0b0e14] border ${isMonitored ? 'border-cyan-700/60' : 'border-[#1e2638]'} rounded-xl p-4 flex flex-col justify-between gap-3">
+              <div class="flex items-start justify-between gap-2 border-b border-[#182133] pb-2">
+                <div>
+                  <h4 class="font-rust font-bold text-white text-sm truncate" title="${box.name}">${box.name || "Storage Box"}</h4>
+                  <span class="text-[10px] font-mono text-gray-400">ID: ${box.id} | ${box.items?.length || 0}/${box.capacity || 30} slots</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button onclick="toggleContainerMonitor('${box.id}')" title="${isMonitored ? 'Monitoring Active' : 'Toggle Diff Monitor'}" class="px-2 py-1 rounded text-[10px] font-mono ${isMonitored ? 'bg-cyan-950 text-cyan-300 border border-cyan-700' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
+                    <i class="fa-solid fa-eye mr-1"></i>${isMonitored ? 'Watching' : 'Watch'}
+                  </button>
+                  <button onclick="calculateBoxRecycle('${box.id}')" title="Calculate Recycle Yield" class="px-2 py-1 rounded text-[10px] font-mono bg-[#182030] hover:bg-[#222e44] text-emerald-300 border border-emerald-800">
+                    <i class="fa-solid fa-recycle"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto custom-scrollbar font-mono text-[11px]">
+                ${(box.items && box.items.length > 0) ? box.items.map(item => `
+                  <div class="bg-[#121722] border border-[#1e2638] px-2 py-1 rounded flex items-center justify-between">
+                    <span class="text-gray-300 truncate mr-1" title="${item.name}">${item.name}</span>
+                    <span class="text-amber-400 font-bold">${item.quantity?.toLocaleString() || 1}</span>
+                  </div>
+                `).join('') : '<p class="text-gray-500 italic col-span-2 text-[10px]">Box is empty.</p>'}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error("loadStorageAndUpkeepData error:", err);
+  }
+}
+
+async function refreshStorageData() {
+  try {
+    showToast("Refreshing storage & Tool Cupboard data...", "info");
+    const res = await fetch("/api/storage/refresh", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to refresh storage");
+    showToast("Storage data refreshed from in-game monitors!", "success");
+    await loadStorageAndUpkeepData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+let searchDebounceTimer = null;
+function handleStorageSearch(val) {
+  clearTimeout(searchDebounceTimer);
+  const resultsDiv = document.getElementById("storage-search-results");
+  if (!resultsDiv) return;
+
+  const query = (val || "").trim();
+  if (!query) {
+    resultsDiv.classList.add("hidden");
+    resultsDiv.innerHTML = "";
+    return;
+  }
+
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/storage/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Search error");
+
+      const results = data.results || [];
+      resultsDiv.classList.remove("hidden");
+      if (results.length === 0) {
+        resultsDiv.innerHTML = `<p class="text-gray-500 italic">No items matching "${query}" found across storage containers.</p>`;
+      } else {
+        const totalFound = results.reduce((acc, r) => acc + (r.quantity || 0), 0);
+        resultsDiv.innerHTML = `
+          <div class="flex items-center justify-between border-b border-[#222e44] pb-2 mb-2">
+            <span class="text-amber-400 font-bold"><i class="fa-solid fa-boxes-stacked mr-1.5"></i> Found ${totalFound.toLocaleString()}x total matching "${query}"</span>
+            <span class="text-gray-500 text-[10px]">${results.length} location(s)</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            ${results.map(r => `
+              <div class="bg-[#121722] border border-[#1e2638] p-2 rounded flex items-center justify-between">
+                <div>
+                  <span class="text-white font-bold block">${r.itemName}</span>
+                  <span class="text-gray-400 text-[10px]">${r.containerName}</span>
+                </div>
+                <span class="text-amber-400 font-bold text-sm">${r.quantity.toLocaleString()}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    } catch (err) {
+      console.error("Storage search error:", err);
+    }
+  }, 250);
+}
+
+async function calculateBoxRecycle(boxId) {
+  try {
+    const isSafe = document.getElementById("calc-recycle-safezone")?.checked || false;
+    showToast("Calculating recycler yield for box...", "info");
+    const res = await fetch(`/api/storage/${boxId}/recycle?safezone=${isSafe}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Recycle calc failed");
+
+    const yieldSummary = Object.entries(data.yield || {})
+      .map(([k, v]) => `${v.toLocaleString()}x ${k}`)
+      .join(", ") || "No recyclable components";
+
+    showToast(`♻️ Box "${data.containerName || boxId}" Yield: ${yieldSummary}`, "info", 6000);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function toggleContainerMonitor(boxId) {
+  try {
+    const res = await fetch(`/api/storage/${boxId}/monitor`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to toggle monitor");
+    showToast(`Container monitoring ${data.monitoring ? "ENABLED (item changes alerted to team)" : "DISABLED"}`, "success");
+    await loadStorageAndUpkeepData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+// ==========================================
+// 7. DEVICE AUTOMATION & TIMERS
+// ==========================================
+async function loadAutomationData() {
+  try {
+    const res = await fetch("/api/automation");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.automation = data;
+
+    // 1. Update SAM sliders & voice toggle
+    const slider = document.getElementById("sam-delay-slider");
+    const label = document.getElementById("sam-delay-label");
+    const voice = document.getElementById("sam-voice-toggle");
+
+    if (slider && data.samConfig) slider.value = data.samConfig.rearmDelaySec || 180;
+    if (label && data.samConfig) {
+      const sec = data.samConfig.rearmDelaySec || 180;
+      label.textContent = sec === 0 ? "Disabled" : `${sec}s (${Math.round(sec / 60)}m)`;
+    }
+    if (voice && data.samConfig) voice.checked = data.samConfig.voiceAlertEnabled ?? true;
+
+    // 2. Render Alarm History
+    const list = document.getElementById("alarm-history-list");
+    if (list) {
+      const history = data.alarmHistory || [];
+      if (history.length === 0) {
+        list.innerHTML = `<p class="text-gray-500 italic">No recent alarms triggered.</p>`;
+      } else {
+        list.innerHTML = history.map(item => `
+          <div class="bg-[#0b0e14] border border-red-950/60 p-2.5 rounded-lg flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-bell text-red-500"></i>
+              <div>
+                <span class="text-white font-bold">${item.name || "Perimeter Alarm"}</span>
+                <span class="text-gray-500 text-[10px] block font-mono">ID: ${item.entityId}</span>
+              </div>
+            </div>
+            <span class="text-gray-400 text-[10px] font-mono">${item.timeAgo || new Date(item.timestamp).toLocaleTimeString()}</span>
+          </div>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error("loadAutomationData error:", err);
+  }
+}
+
+function openAutomationModal(entityId, rawName) {
+  const name = decodeURIComponent(rawName || entityId);
+  const idInput = document.getElementById("automation-entity-id");
+  if (idInput) idInput.value = entityId;
+  const nameEl = document.getElementById("modal-automation-switch-name");
+  if (nameEl) nameEl.textContent = `${name} (ID: ${entityId})`;
+
+  const currentRule = state.automation?.autoRules?.[entityId];
+  const autoTimeInput = document.getElementById("auto-rule-time");
+  const autoStatusP = document.getElementById("auto-rule-current-status");
+
+  if (currentRule) {
+    if (autoTimeInput) autoTimeInput.value = currentRule.delayStr || "";
+    if (autoStatusP) autoStatusP.textContent = `Active: Auto-${currentRule.action || 'off'} after ${currentRule.delayStr || (currentRule.delaySec + 's')}`;
+  } else {
+    if (autoTimeInput) autoTimeInput.value = "";
+    if (autoStatusP) autoStatusP.textContent = "No auto timer set";
+  }
+
+  const dnRule = state.automation?.dayNightRules?.[entityId];
+  const dnSelect = document.getElementById("daynight-rule-select");
+  if (dnSelect) dnSelect.value = dnRule || "none";
+
+  const toRule = state.automation?.teamOfflineRules?.[entityId];
+  const toSelect = document.getElementById("teamoffline-rule-select");
+  if (toSelect) toSelect.value = toRule || "none";
+
+  openModal("modal-automation");
+}
+
+async function saveAutoOffRule() {
+  const entityId = document.getElementById("automation-entity-id")?.value;
+  const delayStr = document.getElementById("auto-rule-time")?.value.trim();
+  if (!entityId || !delayStr) {
+    showToast("Please specify a duration (e.g. 30s, 2m, 5m)", "warning");
+    return;
+  }
+  try {
+    const res = await fetch("/api/automation/auto-rule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityId, action: "off", delayStr })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to set auto-off rule");
+    showToast(`Auto-off timer set for ${delayStr}!`, "success");
+    await loadAutomationData();
+    closeModal("modal-automation");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function clearAutoRuleCurrent() {
+  const entityId = document.getElementById("automation-entity-id")?.value;
+  if (!entityId) return;
+  try {
+    const res = await fetch("/api/automation/auto-rule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityId, action: "clear" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to clear rule");
+    showToast("Auto-off timer removed", "success");
+    await loadAutomationData();
+    const autoStatusP = document.getElementById("auto-rule-current-status");
+    if (autoStatusP) autoStatusP.textContent = "No auto timer set";
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function saveDayNightRule(trigger) {
+  const entityId = document.getElementById("automation-entity-id")?.value;
+  if (!entityId) return;
+  try {
+    const res = await fetch("/api/automation/day-night", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityId, trigger })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save day/night rule");
+    showToast(`Day/Night rule updated to: ${trigger}`, "success");
+    await loadAutomationData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function saveTeamOfflineRule(action) {
+  const entityId = document.getElementById("automation-entity-id")?.value;
+  if (!entityId) return;
+  try {
+    const res = await fetch("/api/automation/team-offline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityId, action })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save team offline rule");
+    showToast(`Sleep defense rule updated: ${action}`, "success");
+    await loadAutomationData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function executeTimedToggle() {
+  const entityId = document.getElementById("automation-entity-id")?.value;
+  const durationStr = document.getElementById("ttoggle-input-time")?.value.trim();
+  if (!entityId || !durationStr) {
+    showToast("Please enter duration (e.g. 1m, 30s)", "warning");
+    return;
+  }
+  try {
+    const res = await fetch("/api/automation/ttoggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityId, durationStr })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to trigger timed toggle");
+    showToast(`Switched device! Will revert in ${durationStr}`, "success");
+    closeModal("modal-automation");
+    fetchStatus();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+let samDelayDebounce = null;
+function handleSamDelayChange(val) {
+  const label = document.getElementById("sam-delay-label");
+  const sec = Number(val);
+  if (label) label.textContent = sec === 0 ? "Disabled" : `${sec}s (${Math.round(sec / 60)}m)`;
+
+  clearTimeout(samDelayDebounce);
+  samDelayDebounce = setTimeout(async () => {
+    try {
+      const res = await fetch("/api/automation/sam-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rearmDelaySec: sec })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update SAM delay");
+      showToast(`SAM auto re-arm delay set to ${sec}s`, "info");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }, 400);
+}
+
+async function handleSamVoiceToggle(enabled) {
+  try {
+    const res = await fetch("/api/automation/sam-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voiceAlertEnabled: enabled })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update SAM voice setting");
+    showToast(`10s SAM voice countdown ${enabled ? "ENABLED" : "DISABLED"}`, "info");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+// ==========================================
+// 8. TEAM TELEMETRY, LEADERBOARD & NOTES
+// ==========================================
+async function loadTeamTelemetryData() {
+  try {
+    const res = await fetch("/api/team/telemetry");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.telemetry = data;
+
+    // 1. Leaderboard Table
+    const tbody = document.getElementById("telemetry-leaderboard-body");
+    if (tbody) {
+      const list = data.leaderboard || [];
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-3 text-center text-gray-500 italic">No wipe telemetry recorded yet.</td></tr>`;
+      } else {
+        tbody.innerHTML = list.map(row => `
+          <tr class="hover:bg-[#151c2a] transition">
+            <td class="py-2.5 font-bold text-white flex items-center gap-1.5">
+              <span>${row.name || row.steamId}</span>
+              ${row.isAfk ? '<span class="text-[9px] bg-amber-950 text-amber-300 border border-amber-800 px-1 py-0.2 rounded">AFK</span>' : ''}
+            </td>
+            <td class="py-2.5 text-emerald-400 font-mono">${row.playtimeFormatted || "0m"}</td>
+            <td class="py-2.5 text-amber-400 font-mono">${row.afkFormatted || "0m"}</td>
+            <td class="py-2.5 text-red-400 font-mono">${row.deathsCount || 0}</td>
+            <td class="py-2.5 text-cyan-400 font-mono">${row.distanceFormatted || "0m"}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // 2. Recent Deaths List
+    const deathsList = document.getElementById("telemetry-deaths-list");
+    if (deathsList) {
+      const deaths = data.deaths || [];
+      if (deaths.length === 0) {
+        deathsList.innerHTML = `<p class="text-gray-500 italic">No recent deaths recorded.</p>`;
+      } else {
+        deathsList.innerHTML = deaths.map(d => `
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2.5 rounded-lg flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-skull text-red-400"></i>
+              <div>
+                <span class="text-white font-bold">${d.name || d.steamId}</span>
+                <span class="text-gray-400 text-[10px] block font-mono">Sector: <b class="text-cyan-400">${d.grid || 'Unknown'}</b> (${Math.round(d.x || 0)}, ${Math.round(d.y || 0)})</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-500 text-[10px] font-mono">${d.timeAgo || new Date(d.timestamp).toLocaleTimeString()}</span>
+              <button onclick="focusPlayerOnMap(${d.x || 0}, ${d.y || 0})" class="bg-[#141b29] hover:bg-cyan-950 text-cyan-300 border border-[#222e44] px-2 py-1 rounded text-[10px] font-mono">
+                <i class="fa-solid fa-location-dot mr-1"></i>Map
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    renderTeamInfo();
+  } catch (err) {
+    console.error("loadTeamTelemetryData error:", err);
+  }
+}
+
+function focusPlayerOnMap(x, y) {
+  if (x === undefined || y === undefined) return;
+  switchTab("map");
+  setTimeout(() => {
+    if (!mapCanvas) return;
+    const mapSize = state.serverInfo?.mapSize || 4500;
+    const imgW = state.mapImage?.naturalWidth || 2000;
+    const imgH = state.mapImage?.naturalHeight || 2000;
+    const oceanMargin = state.mapData?.oceanMargin || (imgW * 0.08);
+    const playableW = imgW - 2 * oceanMargin;
+    const playableH = imgH - 2 * oceanMargin;
+    const targetImgX = oceanMargin + (Number(x) * (playableW / mapSize));
+    const targetImgY = imgH - (oceanMargin + (Number(y) * (playableH / mapSize)));
+
+    state.mapScale = 2.0;
+    state.mapOffsetX = (mapCanvas.width / 2) - (targetImgX * state.mapScale);
+    state.mapOffsetY = (mapCanvas.height / 2) - (targetImgY * state.mapScale);
+    redrawMap();
+    showToast(`Centered map on (${Math.round(x)}, ${Math.round(y)})`, "info");
+  }, 100);
+}
+
+async function loadNotesData() {
+  try {
+    const res = await fetch("/api/notes");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.notes = data.notes || [];
+
+    const grid = document.getElementById("team-notes-grid");
+    if (grid) {
+      if (state.notes.length === 0) {
+        grid.innerHTML = `<p class="text-gray-500 italic col-span-full">No team notes saved. Add one above or type !note &lt;name&gt; &lt;text&gt; in chat.</p>`;
+      } else {
+        grid.innerHTML = state.notes.map(note => `
+          <div class="bg-[#0b0e14] border border-[#1e2638] rounded-xl p-3.5 flex flex-col justify-between gap-2">
+            <div class="flex items-center justify-between border-b border-[#182133] pb-1.5">
+              <span class="text-amber-400 font-bold uppercase text-xs flex items-center gap-1.5">
+                <i class="fa-solid fa-tag"></i> ${note.name}
+              </span>
+              <button onclick="handleDeleteNote('${encodeURIComponent(note.name)}')" class="text-gray-500 hover:text-red-400 text-xs">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+            <p class="text-gray-200 text-xs break-words">${note.text}</p>
+            <div class="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-[#182133]">
+              <span>By: ${note.author || "Teammate"}</span>
+              <span>${note.timestamp ? new Date(note.timestamp).toLocaleDateString() : ""}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error("loadNotesData error:", err);
+  }
+}
+
+async function handleAddNote(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("note-input-name");
+  const textInput = document.getElementById("note-input-text");
+  const name = nameInput.value.trim();
+  const text = textInput.value.trim();
+  if (!name || !text) return;
+
+  try {
+    const res = await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, text })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add note");
+    nameInput.value = "";
+    textInput.value = "";
+    showToast(`Note "${name}" saved!`, "success");
+    await loadNotesData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function handleDeleteNote(rawName) {
+  const name = decodeURIComponent(rawName);
+  try {
+    const res = await fetch(`/api/notes/${encodeURIComponent(name)}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to delete note");
+    showToast(`Note "${name}" removed`, "info");
+    await loadNotesData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+// ==========================================
+// 9. TACTICAL CALCULATORS
+// ==========================================
+function switchCalcSubtab(sub) {
+  ["raid", "craft", "turret"].forEach(k => {
+    const panel = document.getElementById(`calc-panel-${k}`);
+    const btn = document.getElementById(`calc-subtab-${k}`);
+    if (panel) {
+      if (k === sub) {
+        panel.classList.remove("hidden");
+      } else {
+        panel.classList.add("hidden");
+      }
+    }
+    if (btn) {
+      if (k === sub) {
+        btn.className = "calc-subtab-btn active px-3.5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-white bg-rust-700/80 border border-rust-500 transition";
+      } else {
+        btn.className = "calc-subtab-btn px-3.5 py-2 rounded-lg text-xs font-rust uppercase font-bold text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent transition";
+      }
+    }
+  });
+
+  if (sub === "raid") updateRaidCalculator();
+  else if (sub === "craft") { updateCraftCalculator(); updateRecycleCalculator(); }
+  else if (sub === "turret") loadTurrets();
+}
+
+function loadCalculatorsData() {
+  updateRaidCalculator();
+  updateCraftCalculator();
+  updateRecycleCalculator();
+  loadTurrets();
+}
+
+async function updateRaidCalculator() {
+  const select = document.getElementById("calc-raid-target-select");
+  if (!select) return;
+  const target = select.value;
+
+  try {
+    const res = await fetch(`/api/calc/durability?target=${encodeURIComponent(target)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Durability fetch error");
+
+    const info = data.durability;
+    if (!info) return;
+
+    const elC4 = document.getElementById("raid-c4-count");
+    const elC4Sulfur = document.getElementById("raid-c4-sulfur");
+    const elRocket = document.getElementById("raid-rocket-count");
+    const elRocketSulfur = document.getElementById("raid-rocket-sulfur");
+    const elSatchel = document.getElementById("raid-satchel-count");
+    const elSatchelSulfur = document.getElementById("raid-satchel-sulfur");
+    const elExplo = document.getElementById("raid-explo-count");
+    const elExploSulfur = document.getElementById("raid-explo-sulfur");
+
+    if (elC4) elC4.textContent = info.c4 ?? "--";
+    if (elC4Sulfur) elC4Sulfur.textContent = info.c4 ? `Raw Sulfur: ${(info.c4 * 2200).toLocaleString()}` : "N/A";
+
+    if (elRocket) elRocket.textContent = info.rockets ?? "--";
+    if (elRocketSulfur) elRocketSulfur.textContent = info.rockets ? `Raw Sulfur: ${(info.rockets * 1400).toLocaleString()}` : "N/A";
+
+    if (elSatchel) elSatchel.textContent = info.satchels ?? "--";
+    if (elSatchelSulfur) elSatchelSulfur.textContent = info.satchels ? `Raw Sulfur: ${(info.satchels * 480).toLocaleString()}` : "N/A";
+
+    if (elExplo) elExplo.textContent = info.explo556 ?? "--";
+    if (elExploSulfur) elExploSulfur.textContent = info.explo556 ? `Raw Sulfur: ${(Math.round(info.explo556 * 12.5)).toLocaleString()}` : "N/A";
+
+    const meleeDiv = document.getElementById("raid-melee-breakdown");
+    if (meleeDiv) {
+      meleeDiv.innerHTML = `
+        <div>Hard-side Pickaxes: <b class="text-amber-400">${info.pickaxesHard ?? 'Immune / Ineffective'}</b></div>
+        <div>Soft-side Pickaxes: <b class="text-emerald-400">${info.pickaxesSoft ?? 'N/A'}</b></div>
+        <div>Hard-side Spears: <b class="text-amber-400">${info.spearsHard ?? 'Immune'}</b></div>
+        <div>Soft-side Spears: <b class="text-emerald-400">${info.spearsSoft ?? 'N/A'}</b></div>
+      `;
+    }
+
+    const bulletDiv = document.getElementById("raid-bullet-breakdown");
+    if (bulletDiv) {
+      bulletDiv.innerHTML = `
+        <div>HV Rockets: <b class="text-cyan-400">${info.hvRockets ?? 'Ineffective'}</b></div>
+        <div>MLRS Rockets: <b class="text-red-400">${info.mlrsRockets ?? 'N/A'}</b></div>
+        <div>HE Grenades: <b class="text-yellow-400">${info.heGrenades ?? 'N/A'}</b></div>
+        <div>12 Gauge Incendiary: <b class="text-orange-400">${info.shotgunIncendiary ?? 'Immune'}</b></div>
+      `;
+    }
+  } catch (err) {
+    console.error("updateRaidCalculator error:", err);
+  }
+}
+
+async function updateCraftCalculator() {
+  const itemSelect = document.getElementById("calc-craft-item");
+  const qtyInput = document.getElementById("calc-craft-qty");
+  const resultsCard = document.getElementById("craft-results-card");
+  if (!itemSelect || !qtyInput || !resultsCard) return;
+
+  const item = itemSelect.value;
+  const qty = parseInt(qtyInput.value) || 1;
+
+  try {
+    const res = await fetch(`/api/calc/craft?item=${encodeURIComponent(item)}&qty=${qty}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Craft fetch error");
+
+    const craft = data.craft;
+    resultsCard.innerHTML = `
+      <div class="flex items-center justify-between border-b border-[#1c2436] pb-2 mb-2">
+        <span class="text-white font-bold text-sm uppercase">${qty}x ${craft.name || item}</span>
+        <span class="text-cyan-400 text-xs">Workbench Tier: <b>${craft.workbench || 0}</b></span>
+      </div>
+      <div class="text-gray-400 mb-2">Total Craft Time: <b class="text-amber-300">${craft.totalCraftTime || "0s"}</b></div>
+      <div class="grid grid-cols-2 gap-2">
+        ${Object.entries(craft.ingredients || {}).map(([ing, amt]) => `
+          <div class="bg-[#121722] border border-[#1e2638] px-2.5 py-1.5 rounded flex items-center justify-between">
+            <span class="text-gray-300 capitalize">${ing.replace(/_/g, ' ')}</span>
+            <span class="text-amber-400 font-bold">${amt.toLocaleString()}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (err) {
+    resultsCard.innerHTML = `<p class="text-red-400">${err.message}</p>`;
+  }
+}
+
+async function updateRecycleCalculator() {
+  const itemSelect = document.getElementById("calc-recycle-item");
+  const qtyInput = document.getElementById("calc-recycle-qty");
+  const safezoneCheck = document.getElementById("calc-recycle-safezone");
+  const resultsCard = document.getElementById("recycle-results-card");
+  if (!itemSelect || !qtyInput || !resultsCard) return;
+
+  const item = itemSelect.value;
+  const qty = parseInt(qtyInput.value) || 1;
+  const isSafezone = safezoneCheck ? safezoneCheck.checked : false;
+
+  try {
+    const res = await fetch(`/api/calc/recycle?item=${encodeURIComponent(item)}&qty=${qty}&safezone=${isSafezone}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Recycle fetch error");
+
+    const rec = data.recycle;
+    resultsCard.innerHTML = `
+      <div class="flex items-center justify-between border-b border-[#1c2436] pb-2 mb-2">
+        <span class="text-white font-bold text-sm uppercase">${qty}x ${rec.name || item}</span>
+        <span class="text-[10px] px-2 py-0.5 rounded font-mono ${isSafezone ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}">
+          ${isSafezone ? "Safe Zone (80% Yield)" : "Monument (100% Full Yield)"}
+        </span>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        ${Object.entries(rec.yield || {}).map(([ing, amt]) => `
+          <div class="bg-[#121722] border border-[#1e2638] px-2.5 py-1.5 rounded flex items-center justify-between">
+            <span class="text-gray-300 capitalize">${ing.replace(/_/g, ' ')}</span>
+            <span class="text-emerald-400 font-bold">+${amt.toLocaleString()}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (err) {
+    resultsCard.innerHTML = `<p class="text-red-400">${err.message}</p>`;
+  }
+}
+
+async function loadTurrets() {
+  try {
+    const res = await fetch("/api/calc/turrets");
+    if (!res.ok) return;
+    const data = await res.json();
+    const turrets = data.turrets || [];
+
+    const tbody = document.getElementById("turrets-table-body");
+    const alertDiv = document.getElementById("turret-overlap-alert");
+
+    let hasCollision = false;
+    let collisionPairs = [];
+
+    if (tbody) {
+      if (turrets.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 italic">No turrets recorded yet. Add one above or use !turret-add in-game.</td></tr>`;
+      } else {
+        tbody.innerHTML = turrets.map((t, idx) => {
+          const conflicts = [];
+          for (let j = 0; j < turrets.length; j++) {
+            if (idx !== j) {
+              const dx = t.x - turrets[j].x;
+              const dy = t.y - turrets[j].y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 40) {
+                conflicts.push({ name: turrets[j].name, dist: Math.round(dist * 10) / 10 });
+                if (idx < j) collisionPairs.push(`${t.name} & ${turrets[j].name} (${Math.round(dist * 10) / 10}m)`);
+              }
+            }
+          }
+
+          const hasConflict = conflicts.length > 0;
+          if (hasConflict) hasCollision = true;
+
+          return `
+            <tr class="hover:bg-[#151c2a] transition">
+              <td class="p-3 font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-crosshairs ${hasConflict ? 'text-red-400' : 'text-emerald-400'}"></i>
+                ${t.name}
+              </td>
+              <td class="p-3 font-mono text-cyan-300">${t.x}</td>
+              <td class="p-3 font-mono text-cyan-300">${t.y}</td>
+              <td class="p-3 font-mono">
+                ${hasConflict ? `
+                  <span class="text-red-400 font-bold bg-red-950/60 border border-red-800 px-2 py-0.5 rounded text-[10px]">
+                    ⚠️ Overlap: ${conflicts.map(c => `${c.name} (${c.dist}m)`).join(", ")}
+                  </span>
+                ` : `
+                  <span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded text-[10px]">
+                    ✅ Clear (> 40m)
+                  </span>
+                `}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    if (alertDiv) {
+      if (turrets.length < 2) {
+        alertDiv.classList.add("hidden");
+      } else if (hasCollision) {
+        alertDiv.className = "p-4 rounded-xl border border-red-800 bg-red-950/40 text-red-200 font-mono text-xs flex items-center gap-3";
+        alertDiv.innerHTML = `
+          <i class="fa-solid fa-triangle-exclamation text-red-400 text-lg"></i>
+          <div>
+            <b>Warning: 40m Turret Sphere Interference Detected!</b>
+            <div class="text-[11px] text-red-300/80 mt-0.5">${collisionPairs.join(" | ")}</div>
+          </div>
+        `;
+        alertDiv.classList.remove("hidden");
+      } else {
+        alertDiv.className = "p-4 rounded-xl border border-emerald-800 bg-emerald-950/40 text-emerald-200 font-mono text-xs flex items-center gap-3";
+        alertDiv.innerHTML = `
+          <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+          <div>
+            <b>Optimal Spacing: All ${turrets.length} turrets have >= 40m clearance.</b>
+            <div class="text-[11px] text-emerald-300/80 mt-0.5">No power penalties will occur.</div>
+          </div>
+        `;
+        alertDiv.classList.remove("hidden");
+      }
+    }
+  } catch (err) {
+    console.error("loadTurrets error:", err);
+  }
+}
+
+async function handleAddTurret(e) {
+  e.preventDefault();
+  const name = document.getElementById("turret-add-name")?.value.trim();
+  const x = parseFloat(document.getElementById("turret-add-x")?.value);
+  const y = parseFloat(document.getElementById("turret-add-y")?.value);
+  if (!name || isNaN(x) || isNaN(y)) return;
+
+  try {
+    const res = await fetch("/api/calc/turrets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, x, y })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add turret");
+    document.getElementById("turret-add-form")?.reset();
+    showToast(`Turret "${name}" recorded at (${x}, ${y})`, "success");
+    await loadTurrets();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function clearAllTurrets() {
+  if (!confirm("Are you sure you want to clear all recorded turrets?")) return;
+  try {
+    const res = await fetch("/api/calc/turrets", { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to clear turrets");
+    showToast("Turret list cleared", "info");
+    await loadTurrets();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function fillTurretPlayerPos() {
+  const members = state.teamInfo?.members || [];
+  const leaderId = state.teamInfo?.leaderSteamId ? String(state.teamInfo.leaderSteamId) : null;
+  const mySteamId = state.activeServer?.playerId ? String(state.activeServer.playerId) : null;
+
+  const me = members.find(m => String(m.steamId) === mySteamId) || members.find(m => String(m.steamId) === leaderId) || members[0];
+  if (me && me.x !== undefined && me.y !== undefined) {
+    const xInput = document.getElementById("turret-add-x");
+    const yInput = document.getElementById("turret-add-y");
+    if (xInput) xInput.value = (Math.round(me.x * 10) / 10);
+    if (yInput) yInput.value = (Math.round(me.y * 10) / 10);
+    showToast(`Filled coords from ${me.name || 'player'}: (${Math.round(me.x)}, ${Math.round(me.y)})`, "info");
+  } else {
+    showToast("Could not determine current player position. Make sure team info is synced.", "warning");
+  }
+}
+
+// ==========================================
+// 10. INTEL & WEBUI AI CONSULTANT CHAT
+// ==========================================
+async function handleSteamLookup(e) {
+  e.preventDefault();
+  const input = document.getElementById("steam-lookup-input");
+  const query = input?.value.trim();
+  const resultDiv = document.getElementById("steam-lookup-result");
+  const btn = document.getElementById("btn-steam-lookup");
+  if (!query || !resultDiv) return;
+
+  const origBtn = btn ? btn.innerHTML : "";
+  if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+  try {
+    const res = await fetch(`/api/intel/steam/${encodeURIComponent(query)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to inspect Steam profile");
+
+    const p = data.profile;
+    resultDiv.classList.remove("hidden");
+    resultDiv.innerHTML = `
+      <div class="flex items-start gap-4">
+        <img src="${p.avatar || 'https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg'}" class="w-14 h-14 rounded-xl border border-cyan-600 shadow-md">
+        <div class="min-w-0 flex-1 space-y-1">
+          <div class="flex items-center justify-between">
+            <h4 class="text-base font-rust font-bold text-white truncate">${p.personaName || "Unknown Player"}</h4>
+            <a href="${p.profileUrl || '#'}" target="_blank" class="text-cyan-400 hover:text-cyan-300 text-xs">Steam Profile <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+          </div>
+          <div class="text-[11px] text-gray-400">SteamID64: <code class="text-gray-200 font-bold">${p.steamId}</code></div>
+          <div class="text-[11px] text-gray-400">Account Created: <span class="text-gray-300">${p.timeCreated ? new Date(p.timeCreated * 1000).toLocaleDateString() : "Private"}</span></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 pt-3 mt-3 border-t border-[#1c2436] text-center">
+        <div class="bg-[#121722] p-2 rounded">
+          <span class="text-[10px] uppercase text-gray-400 block">VAC Bans</span>
+          <span class="font-bold text-sm ${p.numberOfVACBans > 0 ? 'text-red-400' : 'text-emerald-400'}">${p.numberOfVACBans || 0}</span>
+        </div>
+        <div class="bg-[#121722] p-2 rounded">
+          <span class="text-[10px] uppercase text-gray-400 block">Game Bans</span>
+          <span class="font-bold text-sm ${p.numberOfGameBans > 0 ? 'text-red-400' : 'text-emerald-400'}">${p.numberOfGameBans || 0}</span>
+        </div>
+        <div class="bg-[#121722] p-2 rounded">
+          <span class="text-[10px] uppercase text-gray-400 block">Economy / Trade</span>
+          <span class="font-bold text-sm ${p.economyBan === 'none' ? 'text-emerald-400' : 'text-red-400'}">${p.economyBan || 'Clean'}</span>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    resultDiv.classList.remove("hidden");
+    resultDiv.innerHTML = `<p class="text-red-400">${err.message}</p>`;
+  } finally {
+    if (btn) btn.innerHTML = origBtn;
+  }
+}
+
+async function loadWatchlistData() {
+  try {
+    const res = await fetch("/api/intel/watchlist");
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = data.watchlist || [];
+
+    const container = document.getElementById("watchlist-items-list");
+    if (container) {
+      if (list.length === 0) {
+        container.innerHTML = `<p class="text-gray-500 italic">No enemies currently tracked.</p>`;
+      } else {
+        container.innerHTML = list.map(item => `
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2 rounded flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-crosshairs text-red-400"></i>
+              <span class="text-white font-bold">${item.nameOrId || item.id}</span>
+            </div>
+            <button onclick="handleDeleteWatchlist('${encodeURIComponent(item.nameOrId || item.id)}')" class="text-gray-500 hover:text-red-400 text-xs">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error("loadWatchlistData error:", err);
+  }
+}
+
+async function handleAddWatchlist(e) {
+  e.preventDefault();
+  const input = document.getElementById("watchlist-input-name");
+  const nameOrId = input?.value.trim();
+  if (!nameOrId) return;
+
+  try {
+    const res = await fetch("/api/intel/watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nameOrId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add to watchlist");
+    if (input) input.value = "";
+    showToast(`Tracking enemy "${nameOrId}"!`, "success");
+    await loadWatchlistData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function handleDeleteWatchlist(rawId) {
+  const nameOrId = decodeURIComponent(rawId);
+  try {
+    const res = await fetch(`/api/intel/watchlist/${encodeURIComponent(nameOrId)}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to remove from watchlist");
+    showToast(`Removed "${nameOrId}" from watchlist`, "info");
+    await loadWatchlistData();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function handleWebUiAiChat(e) {
+  e.preventDefault();
+  const input = document.getElementById("ai-chat-input");
+  const chatBox = document.getElementById("ai-chat-box");
+  const btn = document.getElementById("ai-chat-submit-btn");
+  const question = input?.value.trim();
+  if (!question || !chatBox) return;
+
+  // Append user message
+  const userMsgEl = document.createElement("div");
+  userMsgEl.className = "flex items-start gap-2.5 justify-end";
+  userMsgEl.innerHTML = `
+    <div class="bg-rust-900/60 border border-rust-700 text-white p-2.5 rounded-xl max-w-lg text-xs break-words">
+      ${escapeHtml(question)}
+    </div>
+    <div class="w-6 h-6 rounded-full bg-rust-700 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+      <i class="fa-solid fa-user"></i>
+    </div>
+  `;
+  chatBox.appendChild(userMsgEl);
+  if (input) input.value = "";
+  chatBox.scrollTop = chatBox.scrollHeight;
+
+  // Typing indicator
+  const typingEl = document.createElement("div");
+  typingEl.className = "flex items-start gap-2.5";
+  typingEl.innerHTML = `
+    <div class="w-6 h-6 rounded-full bg-purple-700 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+      <i class="fa-solid fa-robot"></i>
+    </div>
+    <div class="bg-[#121722] border border-[#1e2638] text-gray-400 p-2.5 rounded-xl text-xs flex items-center gap-2">
+      <i class="fa-solid fa-spinner fa-spin"></i> Consulting tactical consultant...
+    </div>
+  `;
+  chatBox.appendChild(typingEl);
+  chatBox.scrollTop = chatBox.scrollHeight;
+
+  const origBtnHtml = btn ? btn.innerHTML : "";
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: question })
+    });
+    const data = await res.json();
+    typingEl.remove();
+
+    if (!res.ok) throw new Error(data.error || "AI Assistant query failed");
+
+    const aiMsgEl = document.createElement("div");
+    aiMsgEl.className = "flex items-start gap-2.5";
+    aiMsgEl.innerHTML = `
+      <div class="w-6 h-6 rounded-full bg-purple-700 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+        <i class="fa-solid fa-robot"></i>
+      </div>
+      <div class="bg-[#121722] border border-purple-900/60 text-gray-200 p-3 rounded-xl max-w-lg text-xs leading-relaxed break-words shadow">
+        ${escapeHtml(data.response || "No response received.")}
+      </div>
+    `;
+    chatBox.appendChild(aiMsgEl);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  } catch (err) {
+    typingEl.remove();
+    const errEl = document.createElement("div");
+    errEl.className = "text-red-400 text-xs italic p-1";
+    errEl.textContent = `Error: ${err.message}`;
+    chatBox.appendChild(errEl);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnHtml;
+    }
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Expose all functions to window for DOM onclick attributes
+window.loadStorageAndUpkeepData = loadStorageAndUpkeepData;
+window.refreshStorageData = refreshStorageData;
+window.handleStorageSearch = handleStorageSearch;
+window.calculateBoxRecycle = calculateBoxRecycle;
+window.toggleContainerMonitor = toggleContainerMonitor;
+
+window.loadAutomationData = loadAutomationData;
+window.openAutomationModal = openAutomationModal;
+window.saveAutoOffRule = saveAutoOffRule;
+window.clearAutoRuleCurrent = clearAutoRuleCurrent;
+window.saveDayNightRule = saveDayNightRule;
+window.saveTeamOfflineRule = saveTeamOfflineRule;
+window.executeTimedToggle = executeTimedToggle;
+window.handleSamDelayChange = handleSamDelayChange;
+window.handleSamVoiceToggle = handleSamVoiceToggle;
+
+window.loadTeamTelemetryData = loadTeamTelemetryData;
+window.focusPlayerOnMap = focusPlayerOnMap;
+window.loadNotesData = loadNotesData;
+window.handleAddNote = handleAddNote;
+window.handleDeleteNote = handleDeleteNote;
+
+window.switchCalcSubtab = switchCalcSubtab;
+window.loadCalculatorsData = loadCalculatorsData;
+window.updateRaidCalculator = updateRaidCalculator;
+window.updateCraftCalculator = updateCraftCalculator;
+window.updateRecycleCalculator = updateRecycleCalculator;
+window.loadTurrets = loadTurrets;
+window.handleAddTurret = handleAddTurret;
+window.clearAllTurrets = clearAllTurrets;
+window.fillTurretPlayerPos = fillTurretPlayerPos;
+
+window.handleSteamLookup = handleSteamLookup;
+window.loadWatchlistData = loadWatchlistData;
+window.handleAddWatchlist = handleAddWatchlist;
+window.handleDeleteWatchlist = handleDeleteWatchlist;
+window.handleWebUiAiChat = handleWebUiAiChat;
