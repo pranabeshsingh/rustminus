@@ -1,5 +1,17 @@
+if (!Promise.withResolvers) {
+  Promise.withResolvers = function () {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 const path = require("path");
 const fs = require("fs");
+
 const http = require("http");
 const express = require("express");
 const session = require("express-session");
