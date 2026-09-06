@@ -181,6 +181,13 @@
             <span id="header-fcm-status" class="text-yellow-400 font-bold">Idle</span>
           </div>
 
+          <!-- Clan Chat Bot Mode Toggle Badge -->
+          <button onclick="quickToggleClanChat()" id="btn-header-clanchat" title="Click to toggle Clan Chat bot responses (Default: Team Only)" class="bg-[#141b29] hover:bg-[#1a2336] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+            <i class="fa-solid fa-shield-cat text-gray-400" id="icon-header-clanchat"></i>
+            <span class="text-gray-400 hidden sm:inline">Clan Bot:</span>
+            <span id="header-clan-chat-status" class="text-gray-400 font-bold">Muted</span>
+          </button>
+
           <!-- Audio / Siren Mute Toggle -->
           <button onclick="toggleAudioMute()" id="btn-audio-mute" title="Toggle Raid Siren Audio" class="bg-[#141b29] hover:bg-[#1a2336] text-gray-300 border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
             <i class="fa-solid fa-volume-high text-emerald-400" id="icon-audio-mute"></i>
@@ -235,6 +242,9 @@
           </button>
           <button onclick="switchTab('calculators')" id="tab-btn-calculators" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
             <i class="fa-solid fa-calculator"></i> Raid & Crafting
+          </button>
+          <button onclick="switchTab('codes')" id="tab-btn-codes" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
+            <i class="fa-solid fa-key text-amber-500"></i> Base Codes <span id="badge-code-count" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded text-amber-400">0</span>
           </button>
           <button onclick="switchTab('servers')" id="tab-btn-servers" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
             <i class="fa-solid fa-list-check"></i> Server Profiles <span id="badge-server-count" class="text-[10px] font-mono bg-dark-border px-1.5 py-0.5 rounded">0</span>
@@ -466,6 +476,43 @@
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="alarms-grid">
             <!-- Dynamic smart alarm cards rendered here -->
           </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB: BASE CODES & SECURITY INFORMATION -->
+      <!-- ================================================================= -->
+      <section id="tab-codes" class="tab-content hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl">
+          <div>
+            <h2 class="text-2xl font-rust font-bold uppercase text-white flex items-center gap-2">
+              <i class="fa-solid fa-key text-amber-500"></i> Base Codes &amp; Security Information
+            </h2>
+            <p class="text-xs font-mono text-gray-400 mt-1">Manage door codes, autoturret authorization PINs, guest codes, and TC locks. In-game access strictly via !codes in Team Chat.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button type="button" onclick="toggleAllCodesMask()" id="btn-toggle-codes-mask" class="bg-[#141b29] hover:bg-[#1a2336] text-gray-300 border border-[#222e44] px-3.5 py-2.5 rounded-lg text-xs font-mono transition flex items-center gap-2">
+              <i class="fa-solid fa-eye" id="icon-toggle-codes-mask"></i>
+              <span id="label-toggle-codes-mask">Reveal Codes</span>
+            </button>
+            <button type="button" onclick="openAddCodeModal()" class="bg-amber-600 hover:bg-amber-500 text-white font-rust uppercase font-bold text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition">
+              <i class="fa-solid fa-plus"></i> Add Base Code
+            </button>
+          </div>
+        </div>
+
+        <!-- Security Callout Banner -->
+        <div class="bg-amber-950/30 border border-amber-600/40 rounded-xl p-4 flex items-start gap-3">
+          <i class="fa-solid fa-shield-halved text-amber-500 text-lg mt-0.5"></i>
+          <div class="text-xs font-mono text-amber-200">
+            <span class="font-bold uppercase tracking-wider text-amber-400">Strict Air-Gap Security Protocol:</span>
+            Base codes stored here are <strong class="text-white">only ever dispatched to Team Chat</strong> via <code class="bg-black/40 px-1.5 py-0.5 rounded text-amber-300">!codes [base]</code>. Any attempt to request codes via Clan Chat is automatically blocked by the Sentinel security layer.
+          </div>
+        </div>
+
+        <!-- Base Codes Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="base-codes-grid">
+          <!-- Dynamically populated base code cards -->
         </div>
       </section>
 
@@ -1057,6 +1104,17 @@
 
           <!-- Stream 2: Facepunch Clan Chat -->
           <div id="chat-stream-clan-container" class="hidden flex-1 flex flex-col min-h-0">
+            <!-- Clan Chat Bot Response Policy Notice -->
+            <div class="bg-[#0b0e14] border border-[#1e2638] rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-[11px] font-mono">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-shield-cat text-amber-500"></i>
+                <span class="text-gray-400">Bot Responses in Clan Chat:</span>
+                <span id="clan-tab-bot-status" class="font-bold text-gray-400">Muted (Team Only)</span>
+              </div>
+              <button type="button" onclick="quickToggleClanChat()" class="bg-[#161f30] hover:bg-[#1f2c45] text-amber-400 border border-amber-600/40 px-2.5 py-1 rounded transition text-[10px] uppercase font-bold">
+                Toggle Policy
+              </button>
+            </div>
             <div id="clan-chat-stream" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar font-mono text-xs mb-3">
               <p class="text-gray-500 italic">No in-game Facepunch clan chat received yet.</p>
             </div>
@@ -1952,6 +2010,36 @@
               <p class="text-[10px] text-gray-500 italic">Command shortcut: Use <code class="text-emerald-400">!teamalert [hours|on|off|test]</code> in game chat or Matrix.</p>
             </div>
           </div>
+
+          <!-- Clan Chat Bot Controls & Privacy Policy Card -->
+          <div class="lg:col-span-2 bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2538] pb-4">
+              <div>
+                <h3 class="text-lg font-rust font-bold uppercase text-white flex items-center gap-2">
+                  <i class="fa-solid fa-shield-cat text-amber-500"></i> Clan Chat Bot Responses &amp; Messages
+                </h3>
+                <p class="text-xs font-mono text-gray-400">Controls whether the bot responds to commands and dispatches automated alerts to Clan Chat.</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="setting-clanchat-enabled" onchange="handleClanChatToggle(this.checked)" class="sr-only peer">
+                <div class="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                <span id="setting-clanchat-status-text" class="ml-2 text-xs font-mono font-bold text-gray-400">Team Only (Muted in Clan)</span>
+              </label>
+            </div>
+
+            <div class="space-y-3 font-mono text-xs text-gray-300">
+              <div class="bg-[#0b0e14] border border-[#1e2638] p-4 rounded-lg space-y-2">
+                <div class="flex items-center gap-2 text-white font-bold">
+                  <i class="fa-solid fa-circle-info text-cyan-400"></i> Tactical Operational Policy:
+                </div>
+                <ul class="list-disc list-inside text-gray-400 space-y-1.5 text-[11px]">
+                  <li><strong class="text-white">Disabled (Default / Recommended):</strong> The bot answers commands (<code class="text-rust-400">!pop</code>, <code class="text-rust-400">!oil</code>, <code class="text-rust-400">!cargo</code>, <code class="text-rust-400">!time</code>, <code class="text-rust-400">!ai</code>, etc.) and automated event alerts strictly in <strong class="text-emerald-400">In-Game Team Chat</strong>. Clan chat is completely ignored and silenced.</li>
+                  <li><strong class="text-white">Enabled:</strong> The bot will also respond to commands in Clan Chat and dispatch monument/raid alerts to Clan Chat.</li>
+                  <li><strong class="text-amber-400">Strict Base Code Protection:</strong> Base codes (<code class="text-amber-300">!codes</code>) are <strong class="text-white">NEVER disclosed in Clan Chat</strong> under any circumstance, even when Clan Chat responses are enabled.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Steam Profile & Enemy Intelligence Hub -->
@@ -2367,7 +2455,6 @@
     </div>
   </div>
 
-  <script src="/app.js"></script>
   <!-- SWITCH AUTOMATION RULES MODAL -->
   <div id="modal-automation" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
     <div class="max-w-md w-full bg-[#121722] border border-[#232d3f] rounded-xl p-6 shadow-2xl relative">
@@ -2437,5 +2524,79 @@
     </div>
   </div>
 
+  <!-- BASE CODE ADD/EDIT MODAL -->
+  <div id="modal-base-code" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="max-w-lg w-full bg-[#121722] border border-[#232d3f] rounded-xl p-6 shadow-2xl relative space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-[#20293a]">
+        <div>
+          <h3 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2" id="modal-base-code-title">
+            <i class="fa-solid fa-key text-amber-500"></i> Add Base Code
+          </h3>
+          <p class="text-xs font-mono text-gray-400 mt-0.5">Secure base credentials and access information.</p>
+        </div>
+        <button onclick="closeModal('modal-base-code')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="base-code-form" class="space-y-4" onsubmit="handleBaseCodeSubmit(event)">
+        <input type="hidden" id="base-code-id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Base Name *</label>
+            <input type="text" id="base-code-name" required placeholder="e.g. Main Base, Farm, Cave" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Map Grid Location</label>
+            <input type="text" id="base-code-grid" placeholder="e.g. G14, D8" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono uppercase focus:border-amber-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Door Code (PIN)</label>
+            <input type="text" id="base-code-door" placeholder="e.g. 4921" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Turret Code</label>
+            <input type="text" id="base-code-turret" placeholder="e.g. 8821" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Guest Code</label>
+            <input type="text" id="base-code-guest" placeholder="e.g. 1234" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">TC Lock Code</label>
+            <input type="text" id="base-code-tc" placeholder="e.g. 4921" 
+              class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Tactical Notes &amp; Instructions</label>
+          <textarea id="base-code-notes" rows="2" placeholder="e.g. Floor 2 jump up code, flank bag locations, rooftop peeks..." 
+            class="w-full bg-[#0a0d14] border border-[#20293a] rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-amber-500 focus:outline-none resize-none"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-[#20293a]">
+          <button type="button" onclick="closeModal('modal-base-code')" class="bg-[#141b29] hover:bg-[#1a2336] text-gray-300 border border-[#222e44] px-4 py-2 rounded-lg text-xs font-mono transition">
+            Cancel
+          </button>
+          <button type="submit" class="bg-amber-600 hover:bg-amber-500 text-white font-rust uppercase font-bold text-xs px-5 py-2 rounded-lg transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-floppy-disk"></i> Save Base Code
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
 </body>
 </html>

@@ -28,7 +28,10 @@ let state = {
   clanInfo: null,
   clanChat: [],
   clanArmory: null,
-  notes: []
+  notes: [],
+  baseCodes: [],
+  allCodesMasked: true,
+  clanChatEnabled: false
 };
 
 let ws = null;
@@ -399,6 +402,7 @@ function renderAll() {
   refreshClanInfo(false);
   loadClanChat();
   loadNotesData();
+  loadBaseCodes();
 }
 
 function updateHeaderBadges() {
@@ -2489,6 +2493,8 @@ function switchTab(tabId) {
     renderMarkers();
   } else if (tabId === "calculators") {
     loadCalculatorsData();
+  } else if (tabId === "codes") {
+    loadBaseCodes();
   } else if (tabId === "settings") {
     loadSettings();
     loadWatchlistData();
@@ -2897,6 +2903,11 @@ async function loadSettings() {
       const chkMatrix = document.getElementById("setting-teamalert-matrix");
       if (chkMatrix) chkMatrix.checked = ta.matrixAlerts !== false;
     }
+
+    if (data.clanChat) {
+      state.clanChatEnabled = !!data.clanChat.enabled;
+      updateClanChatUIState(state.clanChatEnabled);
+    }
   } catch (err) {
     console.error("[Settings] Error loading:", err.message);
   }
@@ -2926,6 +2937,8 @@ async function saveSettingsForm() {
   const taClan = document.getElementById("setting-teamalert-clanchat")?.checked !== false;
   const taMatrix = document.getElementById("setting-teamalert-matrix")?.checked !== false;
 
+  const clanChatEnabled = document.getElementById("setting-clanchat-enabled")?.checked || false;
+
   const steamKey = document.getElementById("setting-steam-apikey")?.value.trim() || undefined;
   const bmToken = document.getElementById("setting-bm-token")?.value.trim() || undefined;
   const bmServerId = document.getElementById("setting-bm-serverid")?.value.trim() || "";
@@ -2953,6 +2966,9 @@ async function saveSettingsForm() {
       clanChat: taClan,
       matrixAlerts: taMatrix
     },
+    clanChat: {
+      enabled: clanChatEnabled
+    },
     externalApis: {
       steamApiKey: steamKey,
       battleMetricsToken: bmToken,
@@ -2969,6 +2985,7 @@ async function saveSettingsForm() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to save settings");
 
+    updateClanChatUIState(clanChatEnabled);
     showToast("Settings updated successfully!", "success");
 
     // Clear password inputs
@@ -4587,6 +4604,304 @@ window.handleAddWatchlist = handleAddWatchlist;
 window.handleDeleteWatchlist = handleDeleteWatchlist;
 window.handleWebUiAiChat = handleWebUiAiChat;
 
+// =========================================================================
+// CLAN CHAT POLICY CONTROLS
+// =========================================================================
+
+function updateClanChatUIState(enabled) {
+  state.clanChatEnabled = !!enabled;
+
+  // Settings toggle
+  const toggle = document.getElementById("setting-clanchat-enabled");
+  const statusText = document.getElementById("setting-clanchat-status-text");
+  if (toggle) toggle.checked = !!enabled;
+  if (statusText) {
+    statusText.textContent = enabled ? "Active in Clan" : "Team Only (Muted in Clan)";
+    statusText.className = enabled
+      ? "ml-2 text-xs font-mono font-bold text-amber-400"
+      : "ml-2 text-xs font-mono font-bold text-gray-400";
+  }
+
+  // Header badge
+  const headerStatus = document.getElementById("header-clan-chat-status");
+  const headerIcon = document.getElementById("icon-header-clanchat");
+  if (headerStatus) {
+    headerStatus.textContent = enabled ? "Active" : "Muted";
+    headerStatus.className = enabled ? "text-amber-400 font-bold" : "text-gray-400 font-bold";
+  }
+  if (headerIcon) {
+    headerIcon.className = enabled ? "fa-solid fa-shield-cat text-amber-400" : "fa-solid fa-shield-cat text-gray-400";
+  }
+
+  // Clan tab banner
+  const clanTabStatus = document.getElementById("clan-tab-bot-status");
+  if (clanTabStatus) {
+    clanTabStatus.textContent = enabled ? "Active (Bot replies in Clan)" : "Muted (Team Only)";
+    clanTabStatus.className = enabled ? "font-bold text-amber-400" : "font-bold text-gray-400";
+  }
+}
+
+async function quickToggleClanChat() {
+  const newSetting = !state.clanChatEnabled;
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clanChat: { enabled: newSetting } })
+    });
+    if (!res.ok) throw new Error("Failed to update Clan Chat policy");
+    updateClanChatUIState(newSetting);
+    showToast(newSetting ? "Clan Chat bot responses enabled." : "Clan Chat bot muted (Team Only).", "info");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function handleClanChatToggle(checked) {
+  updateClanChatUIState(checked);
+}
+
+// =========================================================================
+// BASE CODES & SECURITY MANAGEMENT
+// =========================================================================
+
+async function loadBaseCodes() {
+  try {
+    const res = await fetch("/api/codes");
+    if (!res.ok) throw new Error("Failed to load base codes");
+    const data = await res.json();
+    state.baseCodes = data.codes || [];
+
+    const badge = document.getElementById("badge-code-count");
+    if (badge) badge.textContent = state.baseCodes.length;
+
+    renderBaseCodes();
+  } catch (err) {
+    console.error("[BaseCodes] Load error:", err.message);
+  }
+}
+
+function toggleAllCodesMask() {
+  state.allCodesMasked = !state.allCodesMasked;
+  const icon = document.getElementById("icon-toggle-codes-mask");
+  const label = document.getElementById("label-toggle-codes-mask");
+  if (icon && label) {
+    if (state.allCodesMasked) {
+      icon.className = "fa-solid fa-eye";
+      label.textContent = "Reveal Codes";
+    } else {
+      icon.className = "fa-solid fa-eye-slash";
+      label.textContent = "Mask Codes";
+    }
+  }
+  renderBaseCodes();
+}
+
+function copyCodeToClipboard(text, label) {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`Copied ${label}: ${text}`, "success");
+  }).catch(() => {
+    showToast(`Copy failed`, "error");
+  });
+}
+
+function renderBaseCodes() {
+  const container = document.getElementById("base-codes-grid");
+  if (!container) return;
+
+  if (!state.baseCodes || state.baseCodes.length === 0) {
+    container.innerHTML = `
+      <div class="col-span-full bg-[#121722] border border-[#20293a] rounded-xl p-8 text-center space-y-3">
+        <div class="w-14 h-14 mx-auto rounded-xl bg-amber-950/40 border border-amber-600/40 flex items-center justify-center text-amber-500">
+          <i class="fa-solid fa-key text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-rust font-bold uppercase text-white">No Base Codes Stored Yet</h3>
+        <p class="text-xs font-mono text-gray-400 max-w-md mx-auto">
+          Save your door codes, autoturret PINs, guest codes, and TC locks here. They can be queried in-game strictly via <code class="text-amber-400">!codes</code> in Team Chat.
+        </p>
+        <button type="button" onclick="openAddCodeModal()" class="bg-amber-600 hover:bg-amber-500 text-white font-rust uppercase font-bold text-xs px-5 py-2.5 rounded-lg shadow-lg inline-flex items-center gap-2 mt-2">
+          <i class="fa-solid fa-plus"></i> Add First Base Code
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const formatCodeVal = (val) => {
+    if (!val) return '<span class="text-gray-600 italic">None</span>';
+    if (state.allCodesMasked) return '<span class="tracking-widest text-amber-300 font-bold">••••</span>';
+    return `<span class="text-amber-300 font-bold tracking-wider">${escapeHtml(val)}</span>`;
+  };
+
+  container.innerHTML = state.baseCodes.map(c => `
+    <div class="bg-[#121722] border border-[#20293a] hover:border-amber-600/50 rounded-xl p-5 shadow-xl space-y-4 transition flex flex-col justify-between">
+      <div class="space-y-3">
+        <!-- Header: Base Name & Grid -->
+        <div class="flex items-start justify-between gap-2 border-b border-[#1c2538] pb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-amber-950/50 border border-amber-600/60 flex items-center justify-center text-amber-400">
+              <i class="fa-solid fa-dungeon"></i>
+            </div>
+            <div>
+              <h3 class="font-rust font-bold text-base text-white uppercase tracking-wide">${escapeHtml(c.name)}</h3>
+              <p class="text-[10px] font-mono text-gray-500">Updated: ${new Date(c.updatedAt || Date.now()).toLocaleDateString()}</p>
+            </div>
+          </div>
+          ${c.grid ? `<span class="bg-amber-950/80 border border-amber-600/60 text-amber-300 text-xs font-mono font-bold px-2 py-0.5 rounded uppercase">${escapeHtml(c.grid)}</span>` : ''}
+        </div>
+
+        <!-- Codes Grid -->
+        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+          <!-- Door Code -->
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2 rounded-lg flex items-center justify-between">
+            <div>
+              <span class="text-[10px] text-gray-500 block uppercase">Door PIN</span>
+              ${formatCodeVal(c.doorCode)}
+            </div>
+            ${c.doorCode ? `
+              <button type="button" onclick="copyCodeToClipboard('${escapeHtml(c.doorCode)}', 'Door PIN')" class="text-gray-500 hover:text-amber-400 p-1" title="Copy Door Code">
+                <i class="fa-regular fa-copy text-xs"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- Turret Code -->
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2 rounded-lg flex items-center justify-between">
+            <div>
+              <span class="text-[10px] text-gray-500 block uppercase">Turret PIN</span>
+              ${formatCodeVal(c.turretCode)}
+            </div>
+            ${c.turretCode ? `
+              <button type="button" onclick="copyCodeToClipboard('${escapeHtml(c.turretCode)}', 'Turret PIN')" class="text-gray-500 hover:text-amber-400 p-1" title="Copy Turret Code">
+                <i class="fa-regular fa-copy text-xs"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- Guest Code -->
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2 rounded-lg flex items-center justify-between">
+            <div>
+              <span class="text-[10px] text-gray-500 block uppercase">Guest PIN</span>
+              ${formatCodeVal(c.guestCode)}
+            </div>
+            ${c.guestCode ? `
+              <button type="button" onclick="copyCodeToClipboard('${escapeHtml(c.guestCode)}', 'Guest PIN')" class="text-gray-500 hover:text-amber-400 p-1" title="Copy Guest Code">
+                <i class="fa-regular fa-copy text-xs"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- TC Code -->
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2 rounded-lg flex items-center justify-between">
+            <div>
+              <span class="text-[10px] text-gray-500 block uppercase">TC Lock</span>
+              ${formatCodeVal(c.tcCode)}
+            </div>
+            ${c.tcCode ? `
+              <button type="button" onclick="copyCodeToClipboard('${escapeHtml(c.tcCode)}', 'TC Lock')" class="text-gray-500 hover:text-amber-400 p-1" title="Copy TC Lock Code">
+                <i class="fa-regular fa-copy text-xs"></i>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Notes -->
+        ${c.notes ? `
+          <div class="bg-[#0b0e14] border border-[#1e2638] p-2.5 rounded-lg text-xs font-mono text-gray-300">
+            <span class="text-[10px] text-gray-500 block uppercase font-bold mb-0.5"><i class="fa-solid fa-note-sticky text-amber-500"></i> Tactical Notes:</span>
+            <p class="whitespace-pre-wrap">${escapeHtml(c.notes)}</p>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Action Footer -->
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-[#1c2538]">
+        <button type="button" onclick="openEditCodeModal('${c.id}')" class="bg-[#141b29] hover:bg-[#1a2336] text-gray-300 hover:text-white border border-[#222e44] px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+          <i class="fa-solid fa-pen-to-square text-amber-400"></i> Edit
+        </button>
+        <button type="button" onclick="deleteBaseCode('${c.id}')" class="bg-[#141b29] hover:bg-red-950/40 text-gray-400 hover:text-red-400 border border-[#222e44] hover:border-red-800 px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+          <i class="fa-solid fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function openAddCodeModal() {
+  const title = document.getElementById("modal-base-code-title");
+  if (title) title.innerHTML = '<i class="fa-solid fa-key text-amber-500"></i> Add Base Code';
+  const idInput = document.getElementById("base-code-id");
+  if (idInput) idInput.value = "";
+  const form = document.getElementById("base-code-form");
+  if (form) form.reset();
+  openModal("modal-base-code");
+}
+
+function openEditCodeModal(id) {
+  const code = (state.baseCodes || []).find(c => String(c.id) === String(id));
+  if (!code) return;
+
+  const title = document.getElementById("modal-base-code-title");
+  if (title) title.innerHTML = '<i class="fa-solid fa-pen-to-square text-amber-500"></i> Edit Base Code';
+
+  document.getElementById("base-code-id").value = code.id || "";
+  document.getElementById("base-code-name").value = code.name || "";
+  document.getElementById("base-code-grid").value = code.grid || "";
+  document.getElementById("base-code-door").value = code.doorCode || "";
+  document.getElementById("base-code-turret").value = code.turretCode || "";
+  document.getElementById("base-code-guest").value = code.guestCode || "";
+  document.getElementById("base-code-tc").value = code.tcCode || "";
+  document.getElementById("base-code-notes").value = code.notes || "";
+
+  openModal("modal-base-code");
+}
+
+async function handleBaseCodeSubmit(event) {
+  event.preventDefault();
+  const id = document.getElementById("base-code-id").value;
+  const name = document.getElementById("base-code-name").value;
+  const grid = document.getElementById("base-code-grid").value;
+  const doorCode = document.getElementById("base-code-door").value;
+  const turretCode = document.getElementById("base-code-turret").value;
+  const guestCode = document.getElementById("base-code-guest").value;
+  const tcCode = document.getElementById("base-code-tc").value;
+  const notes = document.getElementById("base-code-notes").value;
+
+  try {
+    const res = await fetch("/api/codes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name, grid, doorCode, turretCode, guestCode, tcCode, notes })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save base code");
+
+    closeModal("modal-base-code");
+    showToast(`Base code "${name}" saved!`, "success");
+    await loadBaseCodes();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function deleteBaseCode(id) {
+  const code = (state.baseCodes || []).find(c => String(c.id) === String(id));
+  const name = code?.name || "this base code";
+  if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+  try {
+    const res = await fetch(`/api/codes/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to delete base code");
+
+    showToast(`Base code "${name}" deleted.`, "info");
+    await loadBaseCodes();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
 window.playRaidSiren = playRaidSiren;
 window.stopRaidSiren = stopRaidSiren;
 window.toggleAudioMute = toggleAudioMute;
@@ -4600,3 +4915,14 @@ window.runRaidCalculator = runRaidCalculator;
 window.handleTeamAlertToggle = handleTeamAlertToggle;
 window.sendTestReconnectAlert = sendTestReconnectAlert;
 window.redrawMap = redrawMap;
+
+window.loadBaseCodes = loadBaseCodes;
+window.toggleAllCodesMask = toggleAllCodesMask;
+window.copyCodeToClipboard = copyCodeToClipboard;
+window.openAddCodeModal = openAddCodeModal;
+window.openEditCodeModal = openEditCodeModal;
+window.handleBaseCodeSubmit = handleBaseCodeSubmit;
+window.deleteBaseCode = deleteBaseCode;
+window.quickToggleClanChat = quickToggleClanChat;
+window.handleClanChatToggle = handleClanChatToggle;
+

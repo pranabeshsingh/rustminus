@@ -4,6 +4,7 @@
 # Production configuration containing hashes, keys, tokens
 data/config.json
 data/servers.json
+data/base_codes.json
 
 # Session storage & persistent browser profiles
 data/sessions/

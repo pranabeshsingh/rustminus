@@ -277,6 +277,9 @@ app.get("/api/settings", (req, res) => {
       clanChat: true,
       matrixAlerts: true
     },
+    clanChat: {
+      enabled: !!(cfg.clanChat && cfg.clanChat.enabled)
+    },
     externalApis: {
       steamApiKeyMasked: maskKey(externalApis.steamApiKey),
       hasSteamApiKey: !!externalApis.steamApiKey,
@@ -295,7 +298,7 @@ app.get("/api/time/status", (req, res) => {
 });
 
 app.post("/api/settings", (req, res) => {
-  const { ai, externalApis, dayNightAlerts, teamAlerts } = req.body;
+  const { ai, externalApis, dayNightAlerts, teamAlerts, clanChat } = req.body;
   const cfg = readConfig();
 
   if (!cfg.ai) {
@@ -305,6 +308,11 @@ app.post("/api/settings", (req, res) => {
       apiKey: "",
       model: "gemini-1.5-flash",
       customPrompt: ""
+    };
+  }
+  if (!cfg.clanChat) {
+    cfg.clanChat = {
+      enabled: false
     };
   }
   if (!cfg.externalApis) {
@@ -332,6 +340,12 @@ app.post("/api/settings", (req, res) => {
       clanChat: true,
       matrixAlerts: true
     };
+  }
+
+  if (clanChat && typeof clanChat === "object") {
+    if (typeof clanChat.enabled === "boolean") {
+      cfg.clanChat.enabled = clanChat.enabled;
+    }
   }
 
   if (ai && typeof ai === "object") {
@@ -529,10 +543,76 @@ app.post("/api/clan/chat", async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: "Message required" });
   try {
-    await rustManager.sendClanMessage(message);
+    await rustManager.sendClanMessage(message, true); // force=true for explicit user action from WebUI
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// =========================================================================
+// Base Codes & Base Information Management API
+// =========================================================================
+app.get("/api/codes", (req, res) => {
+  try {
+    const codes = rustManager.getBaseCodes();
+    res.json({ success: true, codes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/codes", (req, res) => {
+  try {
+    const { id, name, grid, doorCode, turretCode, guestCode, tcCode, notes } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Base name is required." });
+    }
+
+    const codes = rustManager.getBaseCodes();
+    const cleanId = id ? String(id).trim() : Date.now().toString();
+
+    const existingIndex = codes.findIndex(c => String(c.id) === cleanId);
+    const updatedEntry = {
+      id: cleanId,
+      name: name.trim(),
+      grid: (grid || "").trim().toUpperCase(),
+      doorCode: (doorCode || "").trim(),
+      turretCode: (turretCode || "").trim(),
+      guestCode: (guestCode || "").trim(),
+      tcCode: (tcCode || "").trim(),
+      notes: (notes || "").trim(),
+      updatedAt: Date.now()
+    };
+
+    if (existingIndex >= 0) {
+      codes[existingIndex] = updatedEntry;
+    } else {
+      codes.push(updatedEntry);
+    }
+
+    rustManager.saveBaseCodes(codes);
+    res.json({ success: true, code: updatedEntry, codes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/codes/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    let codes = rustManager.getBaseCodes();
+    const initialLen = codes.length;
+    codes = codes.filter(c => String(c.id) !== String(id));
+
+    if (codes.length === initialLen) {
+      return res.status(404).json({ error: "Base code entry not found." });
+    }
+
+    rustManager.saveBaseCodes(codes);
+    res.json({ success: true, codes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

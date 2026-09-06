@@ -70,6 +70,8 @@
 
 ### 6. 🏰 Facepunch Clan System & In-Game MOTD Bridge
 - **Official Facepunch Clan API:** Deep integration with Rust's native Clan protocol (`fetchClanInfo`, `fetchClanChat`, `sendClanMessage`, `setClanMotd`).
+- **Clan Chat Bot Response Policy (Default: Team Only):** By default, the bot communicates strictly in Team Chat. Command replies (`!pop`, `!oil`, `!cargo`, `!ai`, etc.) and automated event alerts are suppressed in Clan Chat unless explicitly toggled ON in WebUI Settings or the header quick-switch.
+- **Base Codes & Security Management (`!codes`):** Securely store base credentials (door codes, turret PINs, guest codes, TC locks, grid coords, tactical notes) in the WebUI with mask/reveal toggles. Base codes are **strictly restricted to Team Chat** and will **never be disclosed in Clan Chat** under any circumstance.
 - **Bidirectional Clan Chat Bridge:** Chat seamlessly between in-game Clan Chat, the WebUI Clan Stream, and Matrix channels.
 - **Live Clan MOTD Dispatch:** Edit and broadcast clan Message of the Day banners directly from the dashboard or in-game using `!motd <message>`.
 - **Clan Leaderboard & Role Telemetry:** Real-time visibility into clan roles, leaders, offline/online counts, and clan member lists.
@@ -316,6 +318,7 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 | `!death [name]` | Teammate's last death location and time | `💀 Player1 died in [G14] 4m ago` |
 | `!afk` | Lists squad members currently inactive or sleeping | `💤 [AFK] Player2 (Sleeping for 28m) \| Player3 (Stationary 12m)` |
 | `!teamalert [h\|on\|off\|test]` | View/set threshold for member reconnect alert | `👥 [Team Reconnect Alert] Min offline threshold set to 2 hour(s).` |
+| `!codes` / `!codes <base>` | Retrieve stored door PINs, turret PINs, and base notes (Team Chat ONLY) | `[Code: Main Base @ [G14]] Door: 4921 \| Turret: 8821 \| TC: 4921` |
 | `!promote <name>` | Promotes a teammate to in-game Team Leader | `👑 Promoted Player1 to Team Leader!` |
 | `!kick <name>` | Removes a player from the current in-game team | `🚪 Kicked Player4 from the team.` |
 
