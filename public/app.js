@@ -484,6 +484,9 @@ function renderDevices() {
                 </div>
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button onclick="openRenameModal('${sw.id}', '${encodeURIComponent(sw.name || sw.id)}', 'switch', '${sw.category || "Turrets"}')" title="Rename Device" class="text-gray-400 hover:text-amber-400 transition text-xs p-1">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                </button>
                 <button onclick="openAutomationModal('${sw.id}', '${encodeURIComponent(sw.name || sw.id)}')" title="Smart Rules & Timers" class="text-gray-400 hover:text-cyan-300 transition text-xs p-1">
                   <i class="fa-solid fa-gear"></i>
                 </button>
@@ -528,9 +531,14 @@ function renderDevices() {
                 <span class="text-[10px] font-mono text-gray-400">ID: ${al.id} | ${isTriggered ? "<b class='text-red-400'>TRIGGERED</b>" : "Armed"}</span>
               </div>
             </div>
-            <button onclick="deleteEntity('${al.id}')" class="text-gray-500 hover:text-red-400 text-xs">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button onclick="openRenameModal('${al.id}', '${encodeURIComponent(al.name || al.id)}', 'alarm')" title="Rename Smart Alarm" class="text-gray-400 hover:text-amber-400 text-xs p-1 transition">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button onclick="deleteEntity('${al.id}')" title="Delete Alarm" class="text-gray-500 hover:text-red-400 text-xs p-1 transition">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
           </div>
         `;
       }).join("");
@@ -2584,6 +2592,94 @@ document.getElementById("entity-form")?.addEventListener("submit", async (e) => 
   }
 });
 
+// Smart Device Renaming Suite
+function openRenameModal(entityId, currentNameEncoded, type = "switch", category = "Other") {
+  const currentName = decodeURIComponent(currentNameEncoded || "");
+  const idInput = document.getElementById("rename-entity-id");
+  const nameInput = document.getElementById("rename-entity-name");
+  const typeSelect = document.getElementById("rename-entity-type");
+  const catSelect = document.getElementById("rename-entity-category");
+  const subTitle = document.getElementById("modal-rename-subtitle");
+  const typeInput = document.getElementById("rename-entity-current-type");
+
+  if (idInput) idInput.value = entityId;
+  if (nameInput) nameInput.value = currentName;
+  if (typeInput) typeInput.value = type;
+  if (typeSelect) typeSelect.value = type || "switch";
+  if (catSelect) catSelect.value = category || "Turrets";
+  if (subTitle) {
+    const typeLabel = type === "alarm" ? "Smart Alarm" : type === "storage" ? "Storage Monitor / TC" : "Smart Switch";
+    subTitle.textContent = `Device ID: ${entityId} | Current: "${currentName}" | Type: ${typeLabel}`;
+  }
+
+  openModal("modal-rename-entity");
+  if (nameInput) {
+    setTimeout(() => {
+      nameInput.focus();
+      nameInput.select();
+    }, 50);
+  }
+}
+
+function applyRenamePreset(presetName, targetType = null) {
+  const nameInput = document.getElementById("rename-entity-name");
+  const typeSelect = document.getElementById("rename-entity-type");
+  if (nameInput) {
+    nameInput.value = presetName;
+  }
+  if (targetType && typeSelect) {
+    typeSelect.value = targetType;
+  }
+}
+
+async function handleRenameEntitySubmit(e) {
+  if (e) e.preventDefault();
+  const entityId = document.getElementById("rename-entity-id").value;
+  const newName = document.getElementById("rename-entity-name").value.trim();
+  const type = document.getElementById("rename-entity-type").value;
+  const category = document.getElementById("rename-entity-category").value;
+
+  if (!entityId || !newName) {
+    showToast("Entity ID and new name are required", "error");
+    return;
+  }
+
+  try {
+    const srvId = state.activeServer ? state.activeServer.id : null;
+    const url = srvId ? `/api/servers/${srvId}/entities/${entityId}/rename` : `/api/entities/rename`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityId, name: newName, type, category })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to rename device");
+
+    closeModal("modal-rename-entity");
+    showToast(`Device ${entityId} renamed to "${newName}"`, "success");
+
+    await fetchStatus();
+    if (typeof loadStorageAndUpkeepData === "function") {
+      await loadStorageAndUpkeepData();
+    }
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function renameCurrentTc() {
+  if (state.currentTcId) {
+    openRenameModal(state.currentTcId, encodeURIComponent(state.currentTcName || "TC"), "storage");
+  }
+}
+
+window.openRenameModal = openRenameModal;
+window.applyRenamePreset = applyRenamePreset;
+window.handleRenameEntitySubmit = handleRenameEntitySubmit;
+window.renameCurrentTc = renameCurrentTc;
+
 // Initialization
 document.addEventListener("DOMContentLoaded", () => {
   checkAuth();
@@ -3020,10 +3116,16 @@ async function loadStorageAndUpkeepData() {
     const resStone = document.getElementById("tc-res-stone");
     const resMetal = document.getElementById("tc-res-metal");
     const resHqm = document.getElementById("tc-res-hqm");
+    const renameBtn = document.getElementById("tc-rename-btn");
 
-    if (data.tc) {
+    const primaryTc = data.tc || (data.tcs && data.tcs[0]);
+
+    if (primaryTc) {
+      state.currentTcId = primaryTc.id;
+      state.currentTcName = primaryTc.name;
+      if (renameBtn) renameBtn.classList.remove("hidden");
       if (pill) {
-        if (data.tc.isDecaying) {
+        if (primaryTc.isDecaying) {
           pill.className = "text-xs font-mono px-2 py-0.5 rounded bg-red-950/80 border border-red-700 text-red-300 font-bold animate-pulse";
           pill.textContent = "⚠️ BASE DECAYING";
         } else {
@@ -3031,27 +3133,64 @@ async function loadStorageAndUpkeepData() {
           pill.textContent = "PROTECTED";
         }
       }
-      if (nameLabel) nameLabel.textContent = `${data.tc.name || "Tool Cupboard"} (ID: ${data.tc.id})`;
+      if (nameLabel) nameLabel.textContent = `${primaryTc.tcLabel || primaryTc.name || "Tool Cupboard"} (ID: ${primaryTc.id})`;
       if (timeRemaining) {
-        if (data.tc.isDecaying) {
+        if (primaryTc.isDecaying) {
           timeRemaining.className = "text-xl font-rust font-bold text-red-400";
           timeRemaining.textContent = "DECAYING NOW (0h)";
         } else {
+          const days = primaryTc.upkeepDays !== null && primaryTc.upkeepDays !== undefined ? primaryTc.upkeepDays : (primaryTc.remainingDays || 0);
+          const hrs = primaryTc.upkeepHours !== null && primaryTc.upkeepHours !== undefined ? primaryTc.upkeepHours : (primaryTc.remainingHours || 0);
           timeRemaining.className = "text-xl font-rust font-bold text-emerald-400";
-          timeRemaining.textContent = `${data.tc.remainingDays || 0}d (${data.tc.remainingHours || 0}h) remaining`;
+          timeRemaining.textContent = `${days}d (${hrs}h) remaining`;
         }
       }
-      if (resWood) resWood.textContent = (data.tc.resources?.wood || 0).toLocaleString();
-      if (resStone) resStone.textContent = (data.tc.resources?.stone || 0).toLocaleString();
-      if (resMetal) resMetal.textContent = (data.tc.resources?.metal || 0).toLocaleString();
-      if (resHqm) resHqm.textContent = (data.tc.resources?.hqm || 0).toLocaleString();
+      if (resWood) resWood.textContent = (primaryTc.resources?.wood || 0).toLocaleString();
+      if (resStone) resStone.textContent = (primaryTc.resources?.stone || 0).toLocaleString();
+      if (resMetal) resMetal.textContent = (primaryTc.resources?.metal || 0).toLocaleString();
+      if (resHqm) resHqm.textContent = (primaryTc.resources?.hqm || 0).toLocaleString();
     } else {
+      state.currentTcId = null;
+      if (renameBtn) renameBtn.classList.add("hidden");
       if (pill) {
         pill.className = "text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-400";
         pill.textContent = "No TC Paired";
       }
       if (nameLabel) nameLabel.textContent = "Pair a storage monitor to your Tool Cupboard";
       if (timeRemaining) timeRemaining.textContent = "--";
+    }
+
+    // Render Multi-TC Section if more than 1 TC is present
+    const multiTcSec = document.getElementById("multi-tc-section");
+    const multiTcGrid = document.getElementById("multi-tc-grid");
+    if (multiTcSec && multiTcGrid) {
+      const allTcs = data.tcs || [];
+      if (allTcs.length > 1) {
+        multiTcSec.classList.remove("hidden");
+        multiTcGrid.innerHTML = allTcs.map(tc => {
+          const isDecaying = !!tc.isDecaying;
+          const statusText = isDecaying ? "DECAYING" : `${tc.upkeepDays || 0}d (${tc.upkeepHours || 0}h)`;
+          const statusBadge = isDecaying ? "bg-red-950 text-red-300 border-red-700 animate-pulse" : "bg-emerald-950 text-emerald-300 border-emerald-700";
+          return `
+            <div class="bg-[#0b0e14] border border-[#1e2638] rounded-lg p-2.5 flex items-center justify-between">
+              <div>
+                <div class="font-rust font-bold text-xs text-white flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield text-rust-500 text-[10px]"></i>
+                  <span>${tc.tcLabel || tc.name}</span>
+                </div>
+                <div class="text-[10px] font-mono text-gray-400 mt-0.5">
+                  ID: ${tc.id} | <span class="px-1 py-0.2 rounded border text-[9px] ${statusBadge}">${statusText}</span>
+                </div>
+              </div>
+              <button onclick="openRenameModal('${tc.id}', '${encodeURIComponent(tc.name || tc.id)}', 'storage')" title="Rename TC" class="text-gray-400 hover:text-amber-400 p-1 transition text-xs">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+            </div>
+          `;
+        }).join("");
+      } else {
+        multiTcSec.classList.add("hidden");
+      }
     }
 
     // 2. Render Storage Containers
@@ -3072,6 +3211,9 @@ async function loadStorageAndUpkeepData() {
                   <span class="text-[10px] font-mono text-gray-400">ID: ${box.id} | ${box.items?.length || 0}/${box.capacity || 30} slots</span>
                 </div>
                 <div class="flex items-center gap-1.5">
+                  <button onclick="openRenameModal('${box.id}', '${encodeURIComponent(box.name || box.id)}', 'storage')" title="Rename Container" class="px-2 py-1 rounded text-[10px] font-mono bg-[#182030] hover:bg-amber-900/60 text-amber-300 border border-amber-800 transition">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                  </button>
                   <button onclick="toggleContainerMonitor('${box.id}')" title="${isMonitored ? 'Monitoring Active' : 'Toggle Diff Monitor'}" class="px-2 py-1 rounded text-[10px] font-mono ${isMonitored ? 'bg-cyan-950 text-cyan-300 border border-cyan-700' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
                     <i class="fa-solid fa-eye mr-1"></i>${isMonitored ? 'Watching' : 'Watch'}
                   </button>

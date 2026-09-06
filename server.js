@@ -894,6 +894,125 @@ app.delete("/api/servers/:id/entities/:entityId", (req, res) => {
   res.json({ success: true, server });
 });
 
+// Entity Renaming & Reclassifying
+app.post("/api/servers/:id/entities/:entityId/rename", (req, res) => {
+  const { id, entityId } = req.params;
+  const { name, category, type } = req.body;
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: "Device name is required" });
+  }
+
+  const servers = readServers();
+  const server = servers.find(s => s.id === id);
+  if (!server) {
+    return res.status(404).json({ error: "Server not found" });
+  }
+
+  const eId = Number(entityId);
+  const cleanName = String(name).trim();
+  let found = false;
+  let deviceType = type || null;
+  let oldType = null;
+
+  if (server.switches) {
+    const sw = server.switches.find(s => Number(s.id) === eId);
+    if (sw) {
+      sw.name = cleanName;
+      if (category) sw.category = category;
+      found = true;
+      oldType = "switch";
+      deviceType = deviceType || "Smart Switch";
+    }
+  }
+
+  if (!found && server.alarms) {
+    const al = server.alarms.find(a => Number(a.id) === eId);
+    if (al) {
+      al.name = cleanName;
+      found = true;
+      oldType = "alarm";
+      deviceType = deviceType || "Smart Alarm";
+    }
+  }
+
+  if (!found && server.storageMonitors) {
+    const sm = server.storageMonitors.find(s => Number(s.id) === eId);
+    if (sm) {
+      sm.name = cleanName;
+      found = true;
+      oldType = "storage";
+      deviceType = deviceType || "Storage Monitor";
+    }
+  }
+
+  // Handle explicit migration across types if requested
+  if (type && type !== oldType) {
+    if (server.switches) server.switches = server.switches.filter(s => Number(s.id) !== eId);
+    if (server.alarms) server.alarms = server.alarms.filter(a => Number(a.id) !== eId);
+    if (server.storageMonitors) server.storageMonitors = server.storageMonitors.filter(s => Number(s.id) !== eId);
+
+    if (type === "alarm") {
+      if (!server.alarms) server.alarms = [];
+      server.alarms.push({ id: eId, name: cleanName, type: "alarm", state: false });
+      deviceType = "Smart Alarm";
+    } else if (type === "storage") {
+      if (!server.storageMonitors) server.storageMonitors = [];
+      server.storageMonitors.push({ id: eId, name: cleanName, type: "storage" });
+      deviceType = "Storage Monitor";
+    } else {
+      if (!server.switches) server.switches = [];
+      server.switches.push({ id: eId, name: cleanName, category: category || "Other", type: "switch", state: false });
+      deviceType = "Smart Switch";
+    }
+    found = true;
+  }
+
+  if (!found) {
+    const isAlarm = (type === "alarm" || category === "Alarm");
+    const isStorage = (type === "storage" || category === "Storage" || cleanName.toLowerCase().includes("tc") || cleanName.toLowerCase().includes("box"));
+    if (isAlarm) {
+      if (!server.alarms) server.alarms = [];
+      server.alarms.push({ id: eId, name: cleanName, type: "alarm", state: false });
+      deviceType = "Smart Alarm";
+    } else if (isStorage) {
+      if (!server.storageMonitors) server.storageMonitors = [];
+      server.storageMonitors.push({ id: eId, name: cleanName, type: "storage" });
+      deviceType = "Storage Monitor";
+    } else {
+      if (!server.switches) server.switches = [];
+      server.switches.push({ id: eId, name: cleanName, category: category || "Other", type: "switch", state: false });
+      deviceType = "Smart Switch";
+    }
+  }
+
+  saveServers(servers);
+  if (server.isActive || rustManager.activeServer?.id === server.id) {
+    rustManager.activeServer = server;
+  }
+
+  if (rustManager.storageTracker?.containers.has(eId)) {
+    const c = rustManager.storageTracker.containers.get(eId);
+    c.name = cleanName;
+  }
+
+  broadcast("servers_list", servers);
+  res.json({ success: true, server, entityId: eId, name: cleanName, deviceType });
+});
+
+app.post("/api/entities/rename", (req, res) => {
+  const { entityId, name, category, type } = req.body;
+  if (!rustManager.activeServer) {
+    return res.status(400).json({ error: "No active server connected" });
+  }
+  try {
+    const result = rustManager.renameEntity(entityId, name, type, category);
+    broadcast("servers_list", readServers());
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Entity Toggling
 app.post("/api/entities/toggle", async (req, res) => {
   const { entityId, value } = req.body;
