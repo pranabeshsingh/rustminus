@@ -799,6 +799,7 @@ app.post("/api/servers/:id/entities", (req, res) => {
 
   const eId = Number(entityId);
   const isAlarm = (type === "alarm" || category === "Alarm");
+  const isStorage = (type === "storage" || category === "Storage" || name.toLowerCase().includes("tc") || name.toLowerCase().includes("box"));
 
   if (isAlarm) {
     if (!server.alarms) server.alarms = [];
@@ -807,6 +808,14 @@ app.post("/api/servers/:id/entities", (req, res) => {
       existing.name = name;
     } else {
       server.alarms.push({ id: eId, name, type: "alarm", state: false });
+    }
+  } else if (isStorage) {
+    if (!server.storageMonitors) server.storageMonitors = [];
+    const existing = server.storageMonitors.find(s => Number(s.id) === eId);
+    if (existing) {
+      existing.name = name;
+    } else {
+      server.storageMonitors.push({ id: eId, name, type: "storage" });
     }
   } else {
     if (!server.switches) server.switches = [];
@@ -849,6 +858,9 @@ app.delete("/api/servers/:id/entities/:entityId", (req, res) => {
   }
   if (server.alarms) {
     server.alarms = server.alarms.filter(a => Number(a.id) !== eId);
+  }
+  if (server.storageMonitors) {
+    server.storageMonitors = server.storageMonitors.filter(s => Number(s.id) !== eId);
   }
 
   saveServers(servers);
@@ -1236,6 +1248,10 @@ app.post("/api/fcm/save-token", async (req, res) => {
 
 app.get("/api/fcm/logs", (req, res) => {
   res.json({ logs: fcmService.incomingLogs });
+});
+
+app.get("/api/fcm/recent-pairs", (req, res) => {
+  res.json({ recentPairCodes: rustManager.recentPairCodes || [] });
 });
 
 // Diagnostics & Matrix Triggers

@@ -327,6 +327,10 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 ### Compound Switches & Base Automation
 | Command | Description | Example Output |
 | :--- | :--- | :--- |
+| `!pair` / `!code` | View recently captured pair code or register device | `[Pair Code] Latest: 104829 ("Base Alarm" - Smart Alarm, 12s ago)` |
+| `!pair <id> <name> [type]` | Pair smart device directly via chat (`switch`, `alarm`, `storage`) | `[Pair] Successfully paired "Main TC" (ID: 104829) as Storage Monitor!` |
+| `!paired` / `!devices` | List all paired switches, alarms, and storage monitors | `[Paired Devices] Switches (4)... \| Alarms (2)... \| Storage (1)...` |
+| `!unpair <id\|name>` | Remove a device from paired devices by ID or name | `[Unpair] Successfully removed "Old Turret" (ID: 104829) from paired devices.` |
 | `!lockdown on` / `off` | Trigger or stand down emergency compound lockdown defense | `🚨 [COMPOUND LOCKDOWN] Turrets: ON \| SAMs: ON \| Doors: CLOSED` |
 | `!unlockdown` | Alias to stand down base defense lockdown | `🟢 [LOCKDOWN CANCELLED] Stand down. Base defense alert resolved.` |
 | `!turrets on` / `off` | Batch toggles all compound auto-turrets | `⚡ Set 6/6 Turrets to ON.` |
