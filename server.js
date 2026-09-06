@@ -131,6 +131,7 @@ rustManager.on("clanMessage", (data) => broadcast("clan_message", data));
 rustManager.on("mapMarkerSpawn", (data) => broadcast("map_event", data));
 rustManager.on("event", (data) => broadcast("event_log", data));
 rustManager.on("lockdown", (data) => broadcast("base_lockdown", data));
+rustManager.on("monumentUpdate", (data) => broadcast("monument_update", data));
 
 fcmService.on("status", (data) => broadcast("fcm_status", data));
 fcmService.on("pairingLog", (data) => broadcast("pairing_log", data));
@@ -586,6 +587,27 @@ app.post("/api/base/lockdown", async (req, res) => {
 app.get("/api/base/lockdown/status", (req, res) => {
   if (!rustManager.deviceAutomation) return res.json({ active: false });
   res.json({ success: true, ...rustManager.deviceAutomation.getLockdownStatus() });
+});
+
+// Monument & Oil Rig Timers
+app.get("/api/monuments/status", (req, res) => {
+  if (!rustManager.monumentTracker) return res.status(503).json({ error: "Monument tracker unavailable" });
+  res.json({ success: true, monuments: rustManager.monumentTracker.getStatus() });
+});
+
+app.post("/api/monuments/trigger", (req, res) => {
+  if (!rustManager.monumentTracker) return res.status(503).json({ error: "Monument tracker unavailable" });
+  const { monument, source } = req.body;
+  const result = rustManager.monumentTracker.startTimer(monument, source || "WebUI Trigger");
+  if (!result) return res.status(400).json({ error: "Invalid monument identifier" });
+  res.json({ success: true, monument: result });
+});
+
+app.post("/api/monuments/cancel", (req, res) => {
+  if (!rustManager.monumentTracker) return res.status(503).json({ error: "Monument tracker unavailable" });
+  const { monument } = req.body;
+  const ok = rustManager.monumentTracker.cancelTimer(monument);
+  res.json({ success: ok });
 });
 
 // 4. Tactical Calculators APIs

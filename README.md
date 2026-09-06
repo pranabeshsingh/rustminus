@@ -42,7 +42,11 @@
   - 🚁 Patrol Helicopter
   - 🛩️ CH47 Chinook
   - 📦 Locked Crates (Oil Rig, Cargo, Monuments)
-  - 💥 Explosions & Breaches
+- **Monument Crate & RF Alarm Tracking (Oil Rigs & Cargo Ship):** Since recent Rust updates removed oil rig locked crate radar markers, `rustminus` bridges in-game RF Receivers wired to Smart Alarms in your base:
+  - 🛢️ **Large Oil Rig (RF: 4765):** Detects crate hack initiation, broadcasts in-game announcements, and runs live 15-minute countdown milestones (10m, 5m, 2m, and 0m Unlocked).
+  - 🛢️ **Small Oil Rig (RF: 4768):** Automatic 15-minute crate countdown triggered by base RF Smart Alarms.
+  - 🚢 **Cargo Ship:** Automatic ship entry detection, crate unlock timers, and departure radar tracking.
+  - 🛡️ **Zero False Alarms:** Monument RF alarms are isolated from compound defense, preventing accidental base lockdowns.
 - **Island Vending Machine Search:**
   - Built-in Rust item dictionary translating item IDs into names and descriptions.
   - Search any item for sale (e.g., `sulfur`, `rocket`, `c4`, `scrap`, `cloth`, `metal`).
@@ -293,6 +297,10 @@ Commands can be executed directly inside **In-Game Team Chat**, **Clan Chat**, o
 | `!time` / `!day` / `!night` | In-game clock, dawn/dusk times, and active phase | `☀️ [Time] 14:15 \| Sunrise: 07:31 \| Sunset: 20:05 (Day • Night in ~12m)` |
 | `!daynight` / `!cycle` | Exact minutes remaining until next dawn or dusk | `🌓 [Celestial Status] 4.8 mins until sunset (Night). Prepare NVGs!` |
 | `!cams [monument]` | Look up official CCTV camera identifiers for monuments | `📹 [LARGE OIL RIG] OILRIG1 (Helipad), OILRIG2 (Crane), OILRIG3 (Exhaust)...` |
+| `!oil` / `!rig` / `!timers` | Live crate countdowns for Large Oil, Small Oil, & Cargo | `[Monument Timers] Large Oil: Unlocks in 6m45s \| Small Oil: Ready \| Cargo: Active @ [G14]` |
+| `!oil large` / `!loil [start]` | View or manually start Large Oil Rig 15m crate timer | `[Large Oil Rig] Unlocks in 12m10s (RF: 4765)` |
+| `!oil small` / `!smoil [start]` | View or manually start Small Oil Rig 15m crate timer | `[Small Oil Rig] Unlocks in 8m40s (RF: 4768)` |
+| `!cargo` / `!cargoship [start]` | View Cargo Ship location, crate timer, or manual trigger | `[Cargo Ship] Active @ [G14] \| Unlocks in 9m15s` |
 | `!events` / `!map` | Active world events (Cargo, Heli, Chinook, Crates) | `🗺️ [Active Events] Cargo Ship @ G14 \| Patrol Helicopter @ N11` |
 | `!vending <item>` | Search island vending machines for item and price | `🛒 [Matches for "rocket"] "Raid Shop" @ M14: 1x Rocket for 500 Scrap` |
 
