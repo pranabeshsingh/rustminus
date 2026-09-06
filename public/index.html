@@ -202,7 +202,7 @@
     </header>
 
     <!-- Emergency Lockdown Alert Banner -->
-    <div id="lockdown-banner" class="hidden bg-gradient-to-r from-red-950 via-red-900 to-red-950 border-b border-red-600 px-4 lg:px-8 py-2.5 flex items-center justify-between text-xs font-mono text-white shadow-xl animate-pulse">
+    <div id="lockdown-banner" style="display: none;" class="hidden bg-gradient-to-r from-red-950 via-red-900 to-red-950 border-b border-red-600 px-4 lg:px-8 py-2.5 flex items-center justify-between text-xs font-mono text-white shadow-xl animate-pulse">
       <div class="flex items-center gap-3">
         <span class="bg-red-600 text-white font-bold px-2 py-0.5 rounded uppercase tracking-wider text-[10px]">Compound Lockdown Active</span>
         <span id="lockdown-banner-text" class="font-bold text-red-100">Smart Alarm triggered! Turrets: ON | SAMs: ON | Doors: CLOSED.</span>
@@ -253,12 +253,12 @@
     </div>
 
     <!-- Content Area -->
-    <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1">
+    <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-4 flex-1">
 
       <!-- ================================================================= -->
       <!-- TAB 1: BASE CONTROLS & SMART SWITCHES -->
       <!-- ================================================================= -->
-      <section id="tab-switches" class="tab-content space-y-6">
+      <section id="tab-switches" class="tab-content space-y-4">
         
         <!-- Quick Action Master Bar -->
         <!-- Tool Cupboard Upkeep & Decay Monitor Card -->
@@ -268,6 +268,7 @@
               <div class="w-10 h-10 rounded-xl bg-rust-950/80 border border-rust-700 flex items-center justify-center text-rust-400 text-lg">
                 <i class="fa-solid fa-shield-halved"></i>
               </div>
+              <div>
                 <div class="flex items-center gap-2">
                   <h3 class="text-lg font-rust font-bold uppercase text-white">Tool Cupboard Upkeep Monitor</h3>
                   <span id="tc-status-pill" class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700 text-emerald-300">Checking...</span>

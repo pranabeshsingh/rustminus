@@ -4350,6 +4350,7 @@ function handleLockdownState(data) {
 
   if (data.active) {
     if (banner) {
+      banner.style.display = "flex";
       banner.classList.remove("hidden");
       if (bannerText) {
         bannerText.textContent = `🚨 ${data.alarmName || "Base Alarm"} triggered! Turrets: ON | SAMs: ON | Doors: CLOSED.`;
@@ -4361,7 +4362,10 @@ function handleLockdownState(data) {
     if (label) label.textContent = "STAND DOWN";
     playRaidSiren();
   } else {
-    if (banner) banner.classList.add("hidden");
+    if (banner) {
+      banner.style.display = "none";
+      banner.classList.add("hidden");
+    }
     if (btn) {
       btn.className = "bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-white border border-red-700/80 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-rust uppercase font-bold tracking-wider text-xs shadow";
     }
