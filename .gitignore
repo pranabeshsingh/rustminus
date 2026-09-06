@@ -25,6 +25,7 @@ data/audio/*.txt
 # Environment secrets & private certificates
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.cert
