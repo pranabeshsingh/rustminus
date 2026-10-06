@@ -109,7 +109,7 @@
           <i class="fa-solid fa-radiation text-3xl"></i>
         </div>
         <h1 class="text-3xl font-extrabold font-rust uppercase text-white tracking-wider">Rust+ Manager</h1>
-        <p class="text-xs font-mono text-gray-400 mt-1 uppercase tracking-widest">Tactical Multi-Server & Matrix Node</p>
+        <p class="text-xs font-mono text-gray-400 mt-1 uppercase tracking-widest">Tactical Multi-Server Web Node</p>
       </div>
 
       <form id="login-form" class="space-y-5">
@@ -132,7 +132,7 @@
       </form>
 
       <div class="mt-6 pt-4 border-t border-[#1c2436] text-center">
-        <p class="text-[11px] font-mono text-gray-500">Connected to Matrix Homeserver: <span class="text-gray-400">voice.trylocalhost.com</span></p>
+        <p class="text-[11px] font-mono text-gray-500">Mode: <span class="text-emerald-400">WebUI &amp; Team Chat Live</span> (Matrix Deprecated)</p>
       </div>
     </div>
   </div>
@@ -154,7 +154,7 @@
               <span class="font-rust font-black text-xl text-white tracking-wide">RUST+ SENTINEL</span>
               <span class="text-[10px] font-mono bg-rust-950 text-rust-400 border border-rust-800/80 px-1.5 py-0.5 rounded">v2.4 PRO</span>
             </div>
-            <p class="text-[11px] font-mono text-gray-400">Multi-Server Bridge & Matrix Dispatcher</p>
+            <p class="text-[11px] font-mono text-gray-400">Multi-Server Bridge &amp; Web Dashboard</p>
           </div>
         </div>
 
@@ -167,11 +167,11 @@
             <span id="header-rust-status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
           </div>
 
-          <!-- Matrix Bot Status -->
-          <div class="flex items-center gap-2 bg-[#141b29] border border-[#222e44] px-3 py-1.5 rounded-lg">
-            <i class="fa-solid fa-comments text-cyan-400"></i>
+          <!-- Matrix Bot Status (Deprecated) -->
+          <div class="flex items-center gap-2 bg-[#141b29] border border-[#222e44] px-3 py-1.5 rounded-lg opacity-60" title="Matrix integration is deprecated">
+            <i class="fa-solid fa-comments text-gray-400"></i>
             <span class="text-gray-400">Matrix:</span>
-            <span id="header-matrix-status" class="text-emerald-400 font-bold">Online</span>
+            <span id="header-matrix-status" class="text-gray-400 font-bold">Deprecated</span>
           </div>
 
           <!-- FCM Listener Status -->
@@ -253,7 +253,7 @@
             <i class="fa-solid fa-tower-cell"></i> In-Game Pairing
           </button>
           <button onclick="switchTab('diagnostics')" id="tab-btn-diagnostics" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
-            <i class="fa-solid fa-stethoscope"></i> Matrix & Logs
+            <i class="fa-solid fa-stethoscope"></i> Diagnostics & Logs
           </button>
           <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-4 py-2 rounded-lg text-sm font-rust uppercase font-bold tracking-wider transition flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#141b29] border border-transparent">
             <i class="fa-solid fa-sliders"></i> Settings & AI
@@ -1085,7 +1085,7 @@
                 <i class="fa-solid fa-bullhorn text-cyan-400"></i> Clan MOTD
               </button>
             </div>
-            <span class="text-[11px] font-mono text-gray-400">Bridged to Matrix &amp; Facepunch Clan</span>
+            <span class="text-[11px] font-mono text-gray-400">Live WebUI &amp; Rust In-Game Chat</span>
           </div>
 
           <!-- Stream 1: In-Game Team Chat -->
@@ -1607,13 +1607,20 @@
       <!-- ================================================================= -->
       <section id="tab-diagnostics" class="tab-content hidden space-y-6">
         
-        <!-- Matrix Rooms Status Grid -->
-        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-6">
-          <div>
-            <h3 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
-              <i class="fa-solid fa-diagram-project text-cyan-400"></i> Matrix Homeserver Integration Hub
-            </h3>
-            <p class="text-xs font-mono text-gray-400">Bridge connection to <b class="text-gray-200">https://voice.trylocalhost.com</b> as <b class="text-gray-200">@rustplus_bot</b></p>
+        <!-- Matrix Rooms Status Grid (Deprecated) -->
+        <div class="bg-[#121722] border border-[#20293a] rounded-xl p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2436]">
+            <div>
+              <h3 class="text-xl font-rust font-bold uppercase text-white flex items-center gap-2">
+                <i class="fa-solid fa-diagram-project text-cyan-400"></i> Matrix Homeserver Integration Hub
+                <span class="text-xs font-mono bg-yellow-950/80 text-yellow-400 border border-yellow-700/80 px-2 py-0.5 rounded uppercase font-bold">Deprecated</span>
+              </h3>
+              <p class="text-xs font-mono text-gray-400">Matrix bridge connection is deprecated &amp; disabled. WebUI and in-game squad chat are the active communication channels.</p>
+            </div>
+          </div>
+
+          <div class="bg-yellow-950/30 border border-yellow-800/50 rounded-lg p-3 text-xs text-yellow-300 font-mono">
+            <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Notice: Matrix connection is deprecated. Messages and controls are handled exclusively through the WebUI and Rust in-game chat.
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1927,11 +1934,11 @@
                       <div class="text-[10px] text-gray-500">Broadcasts directly to team in Rust</div>
                     </div>
                   </label>
-                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-amber-500/50">
-                    <input type="checkbox" id="setting-daynight-matrix" checked class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg opacity-60 cursor-not-allowed">
+                    <input type="checkbox" id="setting-daynight-matrix" class="text-amber-500 focus:ring-0 rounded bg-gray-900 border-gray-700" disabled>
                     <div>
-                      <div class="font-bold text-gray-200">Matrix Team Chat &amp; Alerts</div>
-                      <div class="text-[10px] text-gray-500">E2EE team chat room &amp; alert channel</div>
+                      <div class="font-bold text-gray-400">Matrix Alerts <span class="text-[10px] text-yellow-500 font-mono uppercase ml-1">(Deprecated)</span></div>
+                      <div class="text-[10px] text-gray-500">Disabled - WebUI &amp; in-game used instead</div>
                     </div>
                   </label>
                 </div>
@@ -1998,11 +2005,11 @@
                       <div class="text-[10px] text-gray-500">Broadcasts to all 80 clanmates</div>
                     </div>
                   </label>
-                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg cursor-pointer hover:border-emerald-500/50">
-                    <input type="checkbox" id="setting-teamalert-matrix" checked class="text-emerald-500 focus:ring-0 rounded bg-gray-900 border-gray-700">
+                  <label class="flex items-center gap-2.5 bg-[#0b0e14] border border-[#1e2638] p-3 rounded-lg opacity-60 cursor-not-allowed">
+                    <input type="checkbox" id="setting-teamalert-matrix" class="text-emerald-500 focus:ring-0 rounded bg-gray-900 border-gray-700" disabled>
                     <div>
-                      <div class="font-bold text-gray-200">Matrix Team &amp; Alerts</div>
-                      <div class="text-[10px] text-gray-500">E2EE team room &amp; alert feed</div>
+                      <div class="font-bold text-gray-400">Matrix Team &amp; Alerts <span class="text-[10px] text-yellow-500 font-mono uppercase ml-1">(Deprecated)</span></div>
+                      <div class="text-[10px] text-gray-500">Disabled - WebUI &amp; in-game used instead</div>
                     </div>
                   </label>
                 </div>

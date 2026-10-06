@@ -27,6 +27,7 @@ let state = {
   telemetry: null,
   clanInfo: null,
   clanChat: [],
+  teamChat: [],
   clanArmory: null,
   notes: [],
   baseCodes: [],
@@ -196,6 +197,7 @@ function handleWebSocketMessage(msg) {
       state.timeInfo = payload.timeInfo || null;
       state.clanInfo = payload.clanInfo || null;
       state.clanChat = payload.clanChat || [];
+      state.teamChat = payload.teamChat || [];
       if (Array.isArray(payload.markers)) {
         state.markers = payload.markers;
         state.worldEvents = payload.markers.filter(m => [2, 4, 5, 6, 8].includes(m.type));
@@ -281,6 +283,13 @@ function handleWebSocketMessage(msg) {
 
     case "team_message":
       appendTeamChatMessage(payload);
+      break;
+
+    case "team_chat_history":
+      if (Array.isArray(payload)) {
+        state.teamChat = payload;
+        renderTeamChatHistory(payload);
+      }
       break;
 
     case "map_event":
@@ -401,6 +410,7 @@ function renderAll() {
   loadClanArmory(false);
   refreshClanInfo(false);
   loadClanChat();
+  loadTeamChat();
   loadNotesData();
   loadBaseCodes();
 }
@@ -426,8 +436,13 @@ function updateHeaderBadges() {
   }
 
   if (matrixEl) {
-    matrixEl.textContent = state.matrix.connected ? "Connected" : "Reconnecting";
-    matrixEl.className = state.matrix.connected ? "text-emerald-400 font-bold" : "text-yellow-400 font-bold";
+    if (state.matrix?.deprecated || state.matrix?.enabled === false) {
+      matrixEl.textContent = "Deprecated";
+      matrixEl.className = "text-gray-400 font-bold";
+    } else {
+      matrixEl.textContent = state.matrix?.connected ? "Connected" : "Reconnecting";
+      matrixEl.className = state.matrix?.connected ? "text-emerald-400 font-bold" : "text-yellow-400 font-bold";
+    }
   }
 
   if (fcmEl) {
@@ -1167,10 +1182,33 @@ function switchChatSubTab(tab) {
     }
   });
 
-  if (tab === "clan-chat") {
+  if (tab === "team-chat") {
+    loadTeamChat();
+  } else if (tab === "clan-chat") {
     loadClanChat();
   } else if (tab === "clan-motd") {
     renderClanMotd();
+  }
+}
+
+async function loadTeamChat() {
+  try {
+    const res = await fetch("/api/team/chat");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data.messages) && data.messages.length > 0) {
+      state.teamChat = data.messages;
+      renderTeamChatHistory(data.messages);
+    }
+  } catch (e) {}
+}
+
+function renderTeamChatHistory(messages) {
+  const stream = document.getElementById("team-chat-stream");
+  if (!stream) return;
+  stream.innerHTML = "";
+  for (const m of messages) {
+    appendTeamChatMessage(m);
   }
 }
 
@@ -2262,15 +2300,20 @@ function appendTeamChatMessage(msg) {
   const stream = document.getElementById("team-chat-stream");
   if (!stream) return;
 
+  const placeholder = stream.querySelector("p.italic");
+  if (placeholder) {
+    placeholder.remove();
+  }
+
   const timeStr = new Date(msg.time || Date.now()).toLocaleTimeString();
   const el = document.createElement("div");
   el.className = "bg-[#0b0e14] border border-[#1a2233] p-2 rounded-lg";
   el.innerHTML = `
     <div class="flex items-center justify-between text-[10px] text-gray-500 mb-0.5">
-      <span class="font-bold" style="color: ${msg.color || "#55ff55"}">${msg.sender || "Teammate"}</span>
+      <span class="font-bold" style="color: ${msg.color || "#55ff55"}">${escapeHtml(msg.sender || "Teammate")}</span>
       <span>${timeStr}</span>
     </div>
-    <div class="text-gray-200 text-xs">${msg.message}</div>
+    <div class="text-gray-200 text-xs">${escapeHtml(msg.message)}</div>
   `;
 
   stream.appendChild(el);
@@ -2418,8 +2461,12 @@ document.getElementById("team-chat-form")?.addEventListener("submit", async (e) 
   }
 });
 
-// Matrix Diagnostics
+// Matrix Diagnostics (Deprecated)
 async function testMatrixAlert() {
+  if (state.matrix?.deprecated || state.matrix?.enabled === false) {
+    showToast("Matrix connection is deprecated and disabled.", "info");
+    return;
+  }
   try {
     showToast("Sending sample test alert to Matrix...", "info");
     const res = await fetch("/api/matrix/test-alert", { method: "POST" });
@@ -2432,6 +2479,10 @@ async function testMatrixAlert() {
 }
 
 async function testMatrixRaid() {
+  if (state.matrix?.deprecated || state.matrix?.enabled === false) {
+    showToast("Matrix connection is deprecated and disabled.", "info");
+    return;
+  }
   try {
     showToast("Dispatching sample @room raid ping to Matrix...", "warning");
     const res = await fetch("/api/matrix/test-raid", { method: "POST" });
@@ -2444,6 +2495,10 @@ async function testMatrixRaid() {
 }
 
 async function testMatrixChat() {
+  if (state.matrix?.deprecated || state.matrix?.enabled === false) {
+    showToast("Matrix connection is deprecated and disabled.", "info");
+    return;
+  }
   try {
     showToast("Sending test message to TeamChat room...", "info");
     const res = await fetch("/api/matrix/test-chat", { method: "POST" });
@@ -2692,8 +2747,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-// Voice Call Controls
+// Voice Call Controls (Deprecated)
 async function joinVoiceCall() {
+  if (state.matrix?.deprecated || state.matrix?.enabled === false) {
+    showToast("Matrix voice calls are deprecated and disabled.", "info");
+    return;
+  }
   try {
     showToast("Joining MatrixRTC Voice Call...", "info");
     const res = await fetch("/api/matrix/voice-call/join", { method: "POST" });
@@ -2706,6 +2765,10 @@ async function joinVoiceCall() {
 }
 
 async function speakVoiceText(text, title = "Tactical Voice Alert", voice = "en-US-ChristopherNeural") {
+  if (state.matrix?.deprecated || state.matrix?.enabled === false) {
+    showToast("Matrix voice calls are deprecated and disabled.", "info");
+    return;
+  }
   try {
     showToast(`Synthesizing and speaking: "${title}"...`, "info");
     const res = await fetch("/api/matrix/voice-call/speak", {

@@ -170,6 +170,7 @@ rustManager.on("mapData", (data) => broadcast("map_updated", {
 }));
 rustManager.on("entityState", (data) => broadcast("entity_state", data));
 rustManager.on("teamMessage", (data) => broadcast("team_message", data));
+rustManager.on("teamChat", (data) => broadcast("team_chat_history", data));
 rustManager.on("clanInfo", (data) => broadcast("clan_info", data));
 rustManager.on("clanMessage", (data) => broadcast("clan_message", data));
 rustManager.on("mapMarkerSpawn", (data) => broadcast("map_event", data));
@@ -199,6 +200,7 @@ wss.on("connection", (ws) => {
     timeInfo: rustManager.timeInfo,
     clanInfo: rustManager.clanInfo,
     clanChat: rustManager.clanChatHistory || [],
+    teamChat: rustManager.teamChatHistory || [],
     markers: Array.from(rustManager.activeMarkers?.values() || []),
     hasMap: !!rustManager.cachedMap,
     fcm: fcmService.getStatus(),
@@ -1412,6 +1414,17 @@ app.post("/api/team/refresh", async (req, res) => {
   }
 });
 
+app.get("/api/team/chat", async (req, res) => {
+  try {
+    if (rustManager.client && rustManager.client.isConnected()) {
+      await rustManager.fetchTeamChat();
+    }
+    res.json({ success: true, messages: rustManager.teamChatHistory || [] });
+  } catch (err) {
+    res.json({ success: false, error: err.message, messages: rustManager.teamChatHistory || [] });
+  }
+});
+
 app.post("/api/team/chat", async (req, res) => {
   const { message } = req.body;
   if (!message) {
@@ -1519,8 +1532,11 @@ app.get("/api/fcm/recent-pairs", (req, res) => {
   res.json({ recentPairCodes: rustManager.recentPairCodes || [] });
 });
 
-// Diagnostics & Matrix Triggers
+// Diagnostics & Matrix Triggers (Deprecated)
 app.post("/api/matrix/test-alert", async (req, res) => {
+  if (!matrixClient.enabled) {
+    return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
+  }
   try {
     const response = await matrixClient.sendAlert(
       "🛠️ Diagnostic Alert Test",
@@ -1539,6 +1555,9 @@ app.post("/api/matrix/test-alert", async (req, res) => {
 });
 
 app.post("/api/matrix/test-raid", async (req, res) => {
+  if (!matrixClient.enabled) {
+    return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
+  }
   try {
     const response = await matrixClient.sendRaidAlert(
       "Diagnostic Core TC Alarm",
@@ -1557,6 +1576,9 @@ app.post("/api/matrix/test-raid", async (req, res) => {
 });
 
 app.post("/api/matrix/voice-call/join", async (req, res) => {
+  if (!matrixClient.enabled) {
+    return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
+  }
   try {
     await matrixClient.joinVoiceCall();
     res.json({ success: true, inVoiceCall: matrixClient.inVoiceCall });
@@ -1566,6 +1588,9 @@ app.post("/api/matrix/voice-call/join", async (req, res) => {
 });
 
 app.post("/api/matrix/voice-call/speak", async (req, res) => {
+  if (!matrixClient.enabled) {
+    return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
+  }
   const { text, title, voice } = req.body;
   if (!text) {
     return res.status(400).json({ error: "text is required" });
@@ -1587,6 +1612,9 @@ app.post("/api/matrix/voice-call/speak", async (req, res) => {
 });
 
 app.post("/api/matrix/test-chat", async (req, res) => {
+  if (!matrixClient.enabled) {
+    return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
+  }
   try {
     const response = await matrixClient.sendTeamChat(
       "rustbot-diagnostics",
@@ -1612,13 +1640,17 @@ server.listen(PORT, async () => {
   console.log(` WebUI Domain: ${readConfig().webui?.domain || "rust.trylocalhost.com"}`);
   console.log(`=======================================================`);
 
-  // 1. Matrix Bot Login
-  try {
-    console.log("[Startup] Initializing Matrix bot connection...");
-    await matrixClient.login();
-    console.log("[Startup] Matrix bot connected and verified.");
-  } catch (err) {
-    console.warn("[Startup] Matrix bot login deferred/failed:", err.message);
+  // 1. Matrix Bot Login (Deprecated)
+  if (matrixClient.enabled) {
+    try {
+      console.log("[Startup] Initializing Matrix bot connection...");
+      await matrixClient.login();
+      console.log("[Startup] Matrix bot connected and verified.");
+    } catch (err) {
+      console.warn("[Startup] Matrix bot login deferred/failed:", err.message);
+    }
+  } else {
+    console.log("[Startup] Matrix connection is deprecated/disabled. Operating purely via WebUI & team chat.");
   }
 
   // 2. Connect Active Rust Server if one exists
