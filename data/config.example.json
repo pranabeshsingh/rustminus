@@ -2,6 +2,7 @@
   "adminPasswordHash": "$2b$10$YourBcryptHashHereForAdminLogin",
   "sessionSecret": "replace-with-a-random-32-char-session-secret",
   "matrix": {
+    "enabled": false,
     "homeserverUrl": "https://matrix.example.com",
     "username": "rustplus_bot",
     "displayName": "RustPlus Sentinel",

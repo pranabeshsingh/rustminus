@@ -1,13 +1,12 @@
 # ⚡ rustminus
 
-> **Next-Generation Rust+ Companion Multi-Server Manager, Tactical Web Radar, and Matrix E2EE Voice Sentinel**
+> **Next-Generation Rust+ Companion Multi-Server Manager, Tactical Web Radar, and WebUI Squad Hub**
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![License: Unlicense](https://img.shields.io/badge/License-Unlicense-blue.svg)](https://unlicense.org/)
 [![Protocol](https://img.shields.io/badge/Rust%2B-Proto2-orange.svg)](https://github.com/liamcottle/rustplus.js)
-[![Matrix](https://img.shields.io/badge/Matrix-E2EE-blueviolet.svg)](https://matrix.org/)
 
-`rustminus` is an all-in-one companion management platform for Rust players, clans, and server operators. It bridges live Rust+ game servers, Facepunch Firebase Cloud Messaging (FCM) push notifications, a high-performance web dashboard with an interactive tactical map, Matrix end-to-end encrypted (E2EE) chat rooms, and automated WebRTC voice call alerts.
+`rustminus` is an all-in-one companion management platform for Rust players, clans, and server operators. It bridges live Rust+ game servers, Facepunch Firebase Cloud Messaging (FCM) push notifications, and a high-performance web dashboard with an interactive tactical map and squad chat (Matrix integration is deprecated in favor of direct WebUI and in-game communication).
 
 ---
 
@@ -124,10 +123,10 @@
 - **Emergency Strobe:** Rapidly strobes paired switches for disco or warning beacon effects.
 - **Smart Alarms:** Listens for in-game sensor triggers and dispatches instant push, Matrix, and voice alerts.
 
-### 12. 🔐 Matrix E2EE Integration & Ephemeral Voice Bot
-- **Matrix Rooms:** Dedicated channels for **Alerts**, **In-Game Team Chat Relay**, and **Raid Alarms**.
-- **In-Game Commands:** Full remote base control from in-game team chat or Matrix.
-- **Ephemeral Voice Announcer:** High-speed (150%) text-to-speech WebRTC audio injection into Matrix voice rooms with connect-speak-disconnect lifecycle (zero idle ghost bots).
+### 12. 🔐 Matrix E2EE Integration & Ephemeral Voice Bot *(Deprecated)*
+- **Status:** Deprecated and disabled by default (`matrix.enabled: false`).
+- **WebUI Primary:** The system operates directly through the Web Dashboard and in-game team messages, minimizing memory footprint and eliminating external homeserver dependencies.
+- **Legacy Compatibility:** Stubs and optional configs remain for environments still wishing to connect to Matrix homeservers.
 
 ---
 
@@ -223,8 +222,8 @@ node -e 'const bcrypt = require("bcrypt"); console.log(bcrypt.hashSync("YourSecu
 ```
 Paste this hash into `data/config.json` under `"adminPasswordHash"`.
 
-#### B. Configure Matrix (Optional)
-If using Matrix notifications, fill in `data/config.json` with your Matrix homeserver URL, bot credentials, and room IDs.
+#### B. Configure Matrix *(Deprecated / Optional)*
+Matrix integration is deprecated and disabled by default (`matrix.enabled: false`). If enabling legacy Matrix notifications, configure `data/config.json` with `"enabled": true`, your Matrix homeserver URL, bot credentials, and room IDs.
 
 #### C. Configure Rust Server
 Add your server details to `data/servers.json`:
