@@ -14,6 +14,11 @@
     "teamChatRoomId": "!your_team_chat_room_id",
     "raidRoomId": "!your_raid_room_id"
   },
+  "notificationRelay": {
+    "enabled": true,
+    "relayUrl": "https://notificationsrelay.trylocalhost.com/api/send",
+    "apiKey": "YOUR_NOTIFICATION_RELAY_API_KEY"
+  },
   "fcm": {
     "enabled": true,
     "fcm_credentials": {

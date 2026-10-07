@@ -51,6 +51,7 @@ const bcrypt = require("bcrypt");
 const WebSocket = require("ws");
 
 const MatrixClient = require("./lib/matrix");
+const NotificationRelayClient = require("./lib/notification-relay-client");
 const RustPlusManager = require("./lib/rustplus-client");
 const FCMService = require("./lib/fcm-service");
 const { GameDatabase } = require("./lib/game-database");
@@ -137,9 +138,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 
-// Initialize Matrix Client
+// Initialize Matrix Client (Deprecated)
 const initialConfig = readConfig();
 const matrixClient = new MatrixClient(initialConfig.matrix || {});
+
+// Initialize Notification Relay Client (Forwards alerts to Telegram via notificationsrelay.trylocalhost.com)
+const relayClient = new NotificationRelayClient(initialConfig.notificationRelay || {});
+matrixClient.setRelayClient(relayClient);
 
 // Initialize RustPlus Manager
 const rustManager = new RustPlusManager(matrixClient, readServers, saveServers, configManager);
@@ -1532,9 +1537,63 @@ app.get("/api/fcm/recent-pairs", (req, res) => {
   res.json({ recentPairCodes: rustManager.recentPairCodes || [] });
 });
 
-// Diagnostics & Matrix Triggers (Deprecated)
+// Telegram Notification Relay Routes
+app.get("/api/relay/status", (req, res) => {
+  res.json({ success: true, relay: relayClient.getStatus() });
+});
+
+app.post("/api/relay/test-alert", async (req, res) => {
+  try {
+    const response = await relayClient.sendAlert(
+      "🛠️ Diagnostic Alert Test",
+      "This is a verified test dispatch from rustminus via notificationsrelay.trylocalhost.com.",
+      {
+        "Origin": "rust.trylocalhost.com",
+        "Relay": "notificationsrelay.trylocalhost.com",
+        "Timestamp": new Date().toISOString()
+      }
+    );
+    rustManager.logEvent("diagnostic", "Telegram Alert Test Sent", "Test alert dispatched to Telegram Relay.");
+    res.json({ success: true, response });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/relay/test-raid", async (req, res) => {
+  try {
+    const response = await relayClient.sendRaidAlert(
+      "Diagnostic Core TC Alarm",
+      "99999",
+      rustManager.activeServer?.name || "Rustoria Main (Test)",
+      {
+        "Trigger Reason": "Manual Diagnostic Test",
+        "Alert Level": "CRITICAL RAID PING"
+      }
+    );
+    rustManager.logEvent("diagnostic", "Telegram Raid Alert Test Sent", "Test raid alert dispatched to Telegram Relay.");
+    res.json({ success: true, response });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Diagnostics & Matrix Triggers (Deprecated; fallback to Notification Relay)
 app.post("/api/matrix/test-alert", async (req, res) => {
   if (!matrixClient.enabled) {
+    if (relayClient && relayClient.enabled) {
+      const response = await relayClient.sendAlert(
+        "🛠️ Diagnostic Alert Test",
+        "This is a verified test dispatch from rustminus via notificationsrelay.trylocalhost.com.",
+        {
+          "Origin": "rust.trylocalhost.com",
+          "Relay": "notificationsrelay.trylocalhost.com",
+          "Timestamp": new Date().toISOString()
+        }
+      );
+      rustManager.logEvent("diagnostic", "Telegram Relay Alert Test Sent", "Test alert dispatched to Telegram Relay.");
+      return res.json({ success: true, forwardedToRelay: true, response });
+    }
     return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
   }
   try {
@@ -1556,6 +1615,19 @@ app.post("/api/matrix/test-alert", async (req, res) => {
 
 app.post("/api/matrix/test-raid", async (req, res) => {
   if (!matrixClient.enabled) {
+    if (relayClient && relayClient.enabled) {
+      const response = await relayClient.sendRaidAlert(
+        "Diagnostic Core TC Alarm",
+        "99999",
+        rustManager.activeServer?.name || "Rustoria Main (Test)",
+        {
+          "Trigger Reason": "Manual Diagnostic Test",
+          "Alert Level": "CRITICAL RAID PING"
+        }
+      );
+      rustManager.logEvent("diagnostic", "Telegram Raid Alert Test Sent", "Test raid alert dispatched to Telegram Relay.");
+      return res.json({ success: true, forwardedToRelay: true, response });
+    }
     return res.status(400).json({ error: "Matrix connection is deprecated and disabled." });
   }
   try {
@@ -1633,8 +1705,8 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Start Server and initialize background services
-server.listen(PORT, async () => {
+// Start Server and initialize background services (Bound locally behind Caddy)
+server.listen(PORT, "127.0.0.1", async () => {
   console.log(`=======================================================`);
   console.log(` Rust+ Multi-Server Manager running on port ${PORT}`);
   console.log(` WebUI Domain: ${readConfig().webui?.domain || "rust.trylocalhost.com"}`);
