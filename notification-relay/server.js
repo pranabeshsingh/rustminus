@@ -125,7 +125,7 @@ function escapeHtml(str) {
 }
 
 // Telegram messaging core
-async function sendTelegramMessage(text, targetChatId = null) {
+async function sendTelegramMessage(text, targetChatId = null, silent = false) {
   const botToken = config.telegram?.botToken;
   const chatId = targetChatId || config.telegram?.chatId;
 
@@ -153,7 +153,8 @@ async function sendTelegramMessage(text, targetChatId = null) {
         chat_id: chatId,
         text: chunk,
         parse_mode: "HTML",
-        disable_web_page_preview: true
+        disable_web_page_preview: true,
+        disable_notification: Boolean(silent)
       })
     });
 
@@ -311,12 +312,21 @@ async function handleRelayRequest(req, res) {
     telegramHtml += `\n⏱ <i>${timeStr} | rustminus</i>`;
   }
 
+  // Only alarms/raid alerts trigger audible notifications; all other messages are delivered silently
+  const isAlarm = (type === "raid" || level === "critical" || type === "alarm");
+  const silent = typeof req.body.silent === "boolean" ? req.body.silent : !isAlarm;
+
   try {
-    const result = await sendTelegramMessage(telegramHtml, chatId);
-    logEvent(type, title, "delivered", details);
+    const result = await sendTelegramMessage(telegramHtml, chatId, silent);
+    logEvent(type, title, "delivered", {
+      ...details,
+      deliveryMode: silent ? "silent (no sound)" : "loud (alarm sound)"
+    });
     return res.json({
       success: true,
       delivered: true,
+      silent: silent,
+      isAlarm: isAlarm,
       messageCount: result.length,
       timestamp: new Date().toISOString()
     });
@@ -654,10 +664,10 @@ function renderDashboard() {
             <div>
               <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Notification Type</label>
               <select id="testType" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-orange-500">
-                <option value="alert">🔔 Standard Alert (Event / Monument)</option>
-                <option value="raid">🚨 Raid Alert (High Priority Smart Alarm)</option>
-                <option value="teamchat">💬 Squad TeamChat</option>
-                <option value="death">💀 Teammate Death Alert</option>
+                <option value="alert">🔕 Standard Alert (Delivered Silently)</option>
+                <option value="raid">🚨 Raid Alert (Audible Alarm 🔊)</option>
+                <option value="teamchat">🔕 Squad TeamChat (Delivered Silently)</option>
+                <option value="death">🔕 Teammate Death Alert (Delivered Silently)</option>
               </select>
             </div>
 
