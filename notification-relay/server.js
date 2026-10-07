@@ -5,6 +5,12 @@ const fs = require("fs");
 const path = require("path");
 
 const CONFIG_FILE = path.join(__dirname, "config.json");
+const DATA_DIR = path.join(__dirname, "data");
+const MESSAGES_FILE = path.join(DATA_DIR, "messages.jsonl");
+
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 function loadConfig() {
   try {
@@ -29,7 +35,7 @@ function saveConfig(cfg) {
 let config = loadConfig();
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Express Session Middleware
@@ -44,7 +50,7 @@ app.use(session({
   }
 }));
 
-// Metrics and recent events ring buffer
+// Metrics and persistent message recording
 const startTime = Date.now();
 const stats = {
   totalReceived: 0,
@@ -52,21 +58,44 @@ const stats = {
   totalFailed: 0,
   lastSentAt: null
 };
-const recentEvents = [];
-const MAX_EVENTS = 50;
 
-function logEvent(type, title, status, details = null) {
-  const event = {
-    id: Date.now() + "-" + Math.random().toString(36).substr(2, 5),
-    timestamp: new Date().toISOString(),
-    type,
-    title,
-    status,
-    details
-  };
-  recentEvents.unshift(event);
-  if (recentEvents.length > MAX_EVENTS) {
-    recentEvents.pop();
+// In-memory cache of recorded messages for fast querying & UI
+const messageHistory = [];
+
+function loadMessageHistory() {
+  if (!fs.existsSync(MESSAGES_FILE)) return;
+  try {
+    const content = fs.readFileSync(MESSAGES_FILE, "utf8");
+    const lines = content.split("\n").filter(Boolean);
+    for (const line of lines) {
+      try {
+        const record = JSON.parse(line);
+        messageHistory.unshift(record);
+        stats.totalReceived++;
+        if (record.status === "delivered") {
+          stats.totalSent++;
+          if (!stats.lastSentAt || new Date(record.timestamp) > new Date(stats.lastSentAt)) {
+            stats.lastSentAt = record.timestamp;
+          }
+        } else if (record.status === "failed") {
+          stats.totalFailed++;
+        }
+      } catch (parseErr) {}
+    }
+    console.log(`[Notification Relay] Initialized with ${messageHistory.length} persistent messages from disk.`);
+  } catch (err) {
+    console.error("[Notification Relay] Error reading messages.jsonl:", err.message);
+  }
+}
+
+loadMessageHistory();
+
+function recordMessage(entry) {
+  messageHistory.unshift(entry);
+  try {
+    fs.appendFileSync(MESSAGES_FILE, JSON.stringify(entry) + "\n", "utf8");
+  } catch (err) {
+    console.error("[Notification Relay] Failed to append message to messages.jsonl:", err.message);
   }
 }
 
@@ -133,7 +162,6 @@ async function sendTelegramMessage(text, targetChatId = null, silent = false) {
     throw new Error("Telegram botToken or chatId is not configured in notification relay");
   }
 
-  // Telegram limits text to 4096 chars. Split if needed.
   const chunks = [];
   let remaining = text;
   while (remaining.length > 4000) {
@@ -210,6 +238,7 @@ app.get("/health", (req, res) => {
     status: "ok",
     service: "RustMinus Notification Relay",
     uptimeSeconds: Math.floor((Date.now() - startTime) / 1000),
+    totalRecordedMessages: messageHistory.length,
     timestamp: new Date().toISOString()
   });
 });
@@ -251,13 +280,14 @@ app.get("/api/status", async (req, res) => {
       totalReceived: stats.totalReceived,
       totalSent: stats.totalSent,
       totalFailed: stats.totalFailed,
+      totalRecordedOnDisk: messageHistory.length,
       lastSentAt: stats.lastSentAt
     },
-    recentEvents: isAuth ? recentEvents.slice(0, 10) : []
+    recentEvents: isAuth ? messageHistory.slice(0, 15) : []
   });
 });
 
-// Notification Relay Handler
+// Notification Relay Handler (Records all messages persistently)
 async function handleRelayRequest(req, res) {
   stats.totalReceived++;
   const {
@@ -312,31 +342,55 @@ async function handleRelayRequest(req, res) {
     telegramHtml += `\n⏱ <i>${timeStr} | rustminus</i>`;
   }
 
-  // Only alarms/raid alerts trigger audible notifications; all other messages are delivered silently
+  // Determine delivery sound mode: Alarms ring loudly; other messages delivered silently
   const isAlarm = (type === "raid" || level === "critical" || type === "alarm");
   const silent = typeof req.body.silent === "boolean" ? req.body.silent : !isAlarm;
 
+  // Prepare persistent audit record
+  const record = {
+    id: "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+    timestamp: new Date().toISOString(),
+    type,
+    level,
+    title,
+    message,
+    details: details || {},
+    silent,
+    isAlarm,
+    deliveryMode: silent ? "silent (no sound)" : "loud (audible alarm)",
+    chatId: chatId || config.telegram?.chatId,
+    ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown",
+    status: "pending",
+    telegramMessageIds: [],
+    error: null
+  };
+
   try {
     const result = await sendTelegramMessage(telegramHtml, chatId, silent);
-    logEvent(type, title, "delivered", {
-      ...details,
-      deliveryMode: silent ? "silent (no sound)" : "loud (alarm sound)"
-    });
+    record.status = "delivered";
+    record.telegramMessageIds = result.map(r => r.message_id);
+    recordMessage(record);
+
     return res.json({
       success: true,
       delivered: true,
+      recordId: record.id,
       silent: silent,
       isAlarm: isAlarm,
       messageCount: result.length,
-      timestamp: new Date().toISOString()
+      timestamp: record.timestamp
     });
   } catch (err) {
     stats.totalFailed++;
-    logEvent(type, title, "failed", { error: err.message });
+    record.status = "failed";
+    record.error = err.message;
+    recordMessage(record);
+
     console.error("[Relay Send Error]:", err.message);
     return res.status(502).json({
       success: false,
       error: err.message,
+      recordId: record.id,
       note: !config.telegram?.botToken || !config.telegram?.chatId
         ? "Telegram botToken or chatId is not yet configured. Please configure them in the relay dashboard or config.json."
         : undefined
@@ -364,6 +418,46 @@ app.post("/api/test", rateLimiter, requireAuth, async (req, res) => {
   return handleRelayRequest(req, res);
 });
 
+// Messages History API (Paginated & Filterable)
+app.get("/api/messages", requireAuth, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const offset = parseInt(req.query.offset, 10) || 0;
+  const typeFilter = req.query.type;
+
+  let filtered = messageHistory;
+  if (typeFilter && typeFilter !== "all") {
+    filtered = filtered.filter(m => m.type === typeFilter);
+  }
+
+  const paginated = filtered.slice(offset, offset + limit);
+
+  res.json({
+    total: filtered.length,
+    totalAll: messageHistory.length,
+    offset,
+    limit,
+    messages: paginated
+  });
+});
+
+// Export all messages as JSON or JSONL
+app.get("/api/messages/export", requireAuth, (req, res) => {
+  const format = req.query.format || "json";
+  const filename = `notification-relay-history-${new Date().toISOString().slice(0, 10)}.${format}`;
+
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  if (format === "jsonl") {
+    res.setHeader("Content-Type", "application/x-ndjson");
+    if (fs.existsSync(MESSAGES_FILE)) {
+      return fs.createReadStream(MESSAGES_FILE).pipe(res);
+    }
+    return res.send("");
+  } else {
+    res.setHeader("Content-Type", "application/json");
+    return res.json(messageHistory);
+  }
+});
+
 // Update Telegram credentials
 app.post("/api/config", requireAuth, async (req, res) => {
   const { botToken, chatId } = req.body;
@@ -386,10 +480,6 @@ app.post("/api/config", requireAuth, async (req, res) => {
   }
 
   saveConfig(config);
-  logEvent("config", "Telegram Settings Updated", "success", {
-    botUsername: botTestResult?.username || null
-  });
-
   return res.json({
     success: true,
     message: "Telegram configuration updated successfully",
@@ -431,7 +521,7 @@ function renderLoginPage() {
         <i class="fa-solid fa-lock text-orange-500"></i> Admin Access
       </h2>
       <p class="text-xs text-gray-400 mb-6">
-        Please enter the administrative password to access the Telegram relay control center and live metrics.
+        Please enter the administrative password to access the Telegram relay control center and message audit log.
       </p>
 
       <form id="loginForm" class="space-y-5">
@@ -539,6 +629,7 @@ function renderDashboard() {
     .badge-green { background-color: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
     .badge-yellow { background-color: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
     .badge-red { background-color: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-blue { background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
     pre { background-color: #0f1422; border: 1px solid #1e293b; }
   </style>
 </head>
@@ -559,7 +650,7 @@ function renderDashboard() {
                 ${isConfigured ? '<i class="fa-solid fa-check-circle"></i> Operational' : '<i class="fa-solid fa-triangle-exclamation"></i> Needs Telegram Setup'}
               </span>
             </h1>
-            <p class="text-sm text-gray-400">Secure Webhook & Alert Bridge for 
+            <p class="text-sm text-gray-400">Persistent Event Audit & Webhook Bridge for 
               <a href="https://rust.trylocalhost.com" target="_blank" class="text-orange-400 hover:underline">rust.trylocalhost.com</a>
             </p>
           </div>
@@ -567,7 +658,7 @@ function renderDashboard() {
       </div>
       <div class="flex items-center space-x-3 text-sm">
         <span class="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 font-mono text-xs border border-gray-700">
-          <i class="fa-solid fa-lock text-green-400 mr-1"></i> HTTPS / TLS Active
+          <i class="fa-solid fa-database text-blue-400 mr-1"></i> ${messageHistory.length} Recorded
         </span>
         <button id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-red-900 hover:text-red-300 text-gray-300 font-mono text-xs border border-gray-700 transition flex items-center gap-1.5">
           <i class="fa-solid fa-right-from-bracket"></i> Log Out
@@ -578,29 +669,29 @@ function renderDashboard() {
     <!-- Metrics Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="card p-5">
-        <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Telegram Status</div>
+        <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Telegram Bot</div>
         <div class="mt-2 text-xl font-bold flex items-center space-x-2">
-          ${isConfigured ? '<span class="text-green-400"><i class="fa-brands fa-telegram"></i> Connected</span>' : '<span class="text-yellow-400"><i class="fa-solid fa-clock"></i> Pending Bot Token</span>'}
+          ${isConfigured ? '<span class="text-green-400"><i class="fa-brands fa-telegram"></i> @rustminus_bot</span>' : '<span class="text-yellow-400"><i class="fa-solid fa-clock"></i> Unconfigured</span>'}
         </div>
-        <div class="text-xs text-gray-500 mt-1">${hasChat ? "Target Chat configured" : "No Chat ID set"}</div>
+        <div class="text-xs text-gray-500 mt-1">Alarms 🔊 / Other Silent 🔕</div>
       </div>
 
       <div class="card p-5">
         <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Received</div>
         <div class="mt-2 text-2xl font-bold text-white font-mono" id="statReceived">${stats.totalReceived}</div>
-        <div class="text-xs text-gray-500 mt-1">Dispatches from rustminus</div>
+        <div class="text-xs text-gray-500 mt-1">From rustminus & API</div>
       </div>
 
       <div class="card p-5">
         <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Delivered to Telegram</div>
         <div class="mt-2 text-2xl font-bold text-green-400 font-mono" id="statSent">${stats.totalSent}</div>
-        <div class="text-xs text-gray-500 mt-1">Confirmed successful</div>
+        <div class="text-xs text-gray-500 mt-1">Successful dispatches</div>
       </div>
 
       <div class="card p-5">
-        <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Relay Failures</div>
-        <div class="mt-2 text-2xl font-bold text-red-400 font-mono" id="statFailed">${stats.totalFailed}</div>
-        <div class="text-xs text-gray-500 mt-1">Delivery errors</div>
+        <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Persistent Storage</div>
+        <div class="mt-2 text-2xl font-bold text-blue-400 font-mono" id="statRecorded">${messageHistory.length}</div>
+        <div class="text-xs text-gray-500 mt-1">Saved to messages.jsonl</div>
       </div>
     </div>
 
@@ -617,7 +708,7 @@ function renderDashboard() {
         </div>
         <div class="p-5 space-y-4">
           <p class="text-sm text-gray-300">
-            Create a Telegram bot using <a href="https://t.me/BotFather" target="_blank" class="text-orange-400 hover:underline">@BotFather</a> on Telegram, then add your bot to your group/chat and obtain the Chat ID.
+            Messages other than raid alarms are automatically delivered silently without sound.
           </p>
 
           <form id="configForm" class="space-y-4">
@@ -626,7 +717,6 @@ function renderDashboard() {
               <input type="password" id="inputBotToken" placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ" 
                      value="${config.telegram?.botToken || ""}"
                      class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-orange-500 font-mono" required />
-              <p class="text-xs text-gray-500 mt-1">Obtained from Telegram @BotFather</p>
             </div>
 
             <div>
@@ -634,7 +724,6 @@ function renderDashboard() {
               <input type="text" id="inputChatId" placeholder="e.g. -100123456789 or 987654321" 
                      value="${config.telegram?.chatId || ""}"
                      class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-orange-500 font-mono" required />
-              <p class="text-xs text-gray-500 mt-1">Target chat, channel, or personal user ID</p>
             </div>
 
             <div class="pt-2 flex items-center justify-between">
@@ -657,7 +746,7 @@ function renderDashboard() {
         </div>
         <div class="p-5 space-y-4">
           <p class="text-sm text-gray-300">
-            Verify that your Telegram bot is actively relaying Rust+ notifications to your specified chat.
+            Test and verify that messages are properly delivered to Telegram and recorded to disk.
           </p>
 
           <form id="testForm" class="space-y-4">
@@ -685,7 +774,7 @@ function renderDashboard() {
 
             <div class="pt-2 flex items-center justify-between">
               <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-sm transition flex items-center gap-2 shadow-lg">
-                <i class="fa-solid fa-paper-plane"></i> Send Test Alert to Telegram
+                <i class="fa-solid fa-paper-plane"></i> Send Test to Telegram
               </button>
               <span id="testFeedback" class="text-xs font-mono"></span>
             </div>
@@ -695,74 +784,54 @@ function renderDashboard() {
 
     </div>
 
-    <!-- Integration Guide & API Documentation -->
-    <div class="card p-6 space-y-4">
-      <h2 class="text-lg font-bold text-white flex items-center gap-2">
-        <i class="fa-solid fa-code text-orange-400"></i> Relay API & Integration Guide
-      </h2>
-      <p class="text-sm text-gray-300">
-        Applications (including <code class="text-orange-400 font-mono">rustminus</code>) send notifications to this relay via HTTPS:
-      </p>
-
-      <div class="space-y-2">
-        <div class="text-xs font-mono text-gray-400 uppercase font-semibold">1. HTTP POST Payload Structure</div>
-        <pre class="p-4 rounded-lg text-xs font-mono text-gray-300 overflow-x-auto">curl -X POST https://notificationsrelay.trylocalhost.com/api/send \\
-  -H "Content-Type: application/json" \\
-  -H "X-API-Key: ${config.apiKey}" \\
-  -d '{
-    "type": "raid",
-    "title": "Smart Alarm 20001 Triggered",
-    "message": "Base perimeter breach detected!",
-    "details": {
-      "Server": "Rust Official Vanilla",
-      "Entity ID": "20001",
-      "Sector": "G14"
-    }
-  }'</pre>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-        <div>
-          <div class="text-xs font-mono text-gray-400 uppercase font-semibold mb-1">Relay API Key</div>
-          <div class="p-3 bg-gray-900 border border-gray-800 rounded-lg flex items-center justify-between">
-            <span class="text-xs font-mono text-orange-400 truncate select-all">${config.apiKey}</span>
-          </div>
-        </div>
-        <div>
-          <div class="text-xs font-mono text-gray-400 uppercase font-semibold mb-1">Target Endpoint</div>
-          <div class="p-3 bg-gray-900 border border-gray-800 rounded-lg flex items-center justify-between">
-            <span class="text-xs font-mono text-blue-400 select-all">https://notificationsrelay.trylocalhost.com/api/send</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent Events Log -->
+    <!-- Persistent Audit & Message History -->
     <div class="card">
-      <div class="card-header p-4 flex items-center justify-between">
-        <h2 class="font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-history text-gray-400"></i> Recent Relayed Notifications Log
-        </h2>
-        <span class="text-xs text-gray-500 font-mono">Real-Time In-Memory Buffer</span>
+      <div class="card-header p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-database text-orange-400"></i> Relayed Messages Audit Log
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">Every message relayed is permanently recorded to <code class="text-gray-300">data/messages.jsonl</code></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="/api/messages/export?format=json" download class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono border border-gray-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-download"></i> Export JSON
+          </a>
+          <a href="/api/messages/export?format=jsonl" download class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono border border-gray-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-file-code"></i> Export JSONL
+          </a>
+        </div>
       </div>
+
       <div class="p-4 overflow-x-auto">
         <table class="w-full text-left text-xs font-mono">
           <thead>
             <tr class="text-gray-400 border-b border-gray-800">
-              <th class="pb-2">Time</th>
-              <th class="pb-2">Type</th>
-              <th class="pb-2">Title</th>
-              <th class="pb-2">Status</th>
+              <th class="pb-2.5">Timestamp</th>
+              <th class="pb-2.5">Type</th>
+              <th class="pb-2.5">Mode</th>
+              <th class="pb-2.5">Title & Message</th>
+              <th class="pb-2.5">Status</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-800" id="eventsTableBody">
-            ${recentEvents.length === 0 ? '<tr><td colspan="4" class="py-4 text-center text-gray-600 italic">No notifications relayed yet. Send a test to see it here!</td></tr>' : ""}
-            ${recentEvents.map(e => `
-              <tr>
-                <td class="py-2.5 text-gray-400">${new Date(e.timestamp).toLocaleTimeString()}</td>
-                <td class="py-2.5"><span class="px-2 py-0.5 rounded ${e.type === "raid" ? "badge-red" : e.type === "death" ? "badge-yellow" : "badge-green"}">${e.type}</span></td>
-                <td class="py-2.5 text-gray-200">${escapeHtml(e.title)}</td>
-                <td class="py-2.5 font-bold ${e.status === "delivered" ? "text-green-400" : "text-red-400"}">${e.status}</td>
+          <tbody class="divide-y divide-gray-800" id="messagesTableBody">
+            ${messageHistory.length === 0 ? '<tr><td colspan="5" class="py-6 text-center text-gray-600 italic">No messages recorded yet. Any message relayed will appear here permanently.</td></tr>' : ""}
+            ${messageHistory.slice(0, 30).map(m => `
+              <tr class="hover:bg-gray-900 transition">
+                <td class="py-3 text-gray-400 whitespace-nowrap">${new Date(m.timestamp).toLocaleTimeString()} <span class="text-gray-600 text-[10px]">${new Date(m.timestamp).toLocaleDateString()}</span></td>
+                <td class="py-3 whitespace-nowrap">
+                  <span class="px-2 py-0.5 rounded ${m.type === "raid" ? "badge-red" : m.type === "death" ? "badge-yellow" : m.type === "teamchat" ? "badge-blue" : "badge-green"}">${m.type}</span>
+                </td>
+                <td class="py-3 whitespace-nowrap">
+                  ${m.isAlarm ? '<span class="text-red-400 font-bold"><i class="fa-solid fa-volume-high"></i> Audible</span>' : '<span class="text-gray-400"><i class="fa-solid fa-volume-xmark"></i> Silent</span>'}
+                </td>
+                <td class="py-3 text-gray-300 max-w-md">
+                  <div class="font-bold text-white truncate">${escapeHtml(m.title)}</div>
+                  <div class="text-gray-400 truncate text-[11px]">${escapeHtml(m.message || "")}</div>
+                </td>
+                <td class="py-3 whitespace-nowrap font-bold ${m.status === "delivered" ? "text-green-400" : "text-red-400"}">
+                  ${m.status === "delivered" ? '<i class="fa-solid fa-check"></i> Delivered' : '<i class="fa-solid fa-times"></i> Failed'}
+                </td>
               </tr>
             `).join("")}
           </tbody>
@@ -828,8 +897,8 @@ function renderDashboard() {
         const data = await res.json();
         if (res.ok && data.success) {
           fb.className = "text-xs font-mono text-green-400";
-          fb.innerText = "Delivered to Telegram! ✅";
-          setTimeout(() => location.reload(), 1500);
+          fb.innerText = "Delivered & Recorded! ✅";
+          setTimeout(() => location.reload(), 1200);
         } else {
           fb.className = "text-xs font-mono text-red-400";
           fb.innerText = data.error || "Delivery failed";
@@ -856,5 +925,5 @@ const PORT = config.port || 3001;
 app.listen(PORT, "127.0.0.1", () => {
   console.log(`[Notification Relay] Server running on 127.0.0.1:${PORT}`);
   console.log(`[Notification Relay] Domain: notificationsrelay.trylocalhost.com`);
-  console.log(`[Notification Relay] Auth Protection: Enabled`);
+  console.log(`[Notification Relay] Message Recording: ACTIVE (${MESSAGES_FILE})`);
 });

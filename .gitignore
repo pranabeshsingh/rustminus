@@ -7,6 +7,7 @@ data/servers.json
 data/base_codes.json
 notification-relay/config.json
 notification-relay/.env
+notification-relay/data/
 
 # Session storage & persistent browser profiles
 data/sessions/
